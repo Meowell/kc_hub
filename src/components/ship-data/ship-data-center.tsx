@@ -30,6 +30,29 @@ for (const s of start2.api_mst_ship as ShipMaster[]) {
   shipBaseById.set(s.api_id, s);
 }
 
+// 构建改修链追溯：shipId -> 链最前端的原始船ID
+type ChainShip = { api_id: number; api_aftershipid?: string };
+const remodelFrom = new Map<number, number>();
+for (const s of start2.api_mst_ship as unknown as ChainShip[]) {
+  const after = s.api_aftershipid ? Number(s.api_aftershipid) : 0;
+  if (after) remodelFrom.set(after, s.api_id);
+}
+const origByShipId = new Map<number, number>();
+function getRemodelRoot(shipId: number): number {
+  let cur = shipId;
+  const seen = new Set<number>();
+  while (true) {
+    const from = remodelFrom.get(cur);
+    if (!from || seen.has(from)) break;
+    seen.add(from);
+    cur = from;
+  }
+  return cur;
+}
+for (const s of start2.api_mst_ship as unknown as ChainShip[]) {
+  origByShipId.set(s.api_id, getRemodelRoot(s.api_id));
+}
+
 // 预计算的婚舰HP数据（来自kc-web的master.json）
 const shipHpById = new Map(
   (shipHpData as { id: number; hp: number; hp2: number; max_hp: number; orig?: number }[]).map((s) => [s.id, s]),
@@ -135,7 +158,7 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
         return {
           rowId: `${ship.id}-${index}`,
           id: ship.id,
-          orig: shipHpById.get(ship.id)?.orig ?? ship.id,
+          orig: origByShipId.get(ship.id) ?? ship.id,
           name: shipNameById.get(ship.id) ?? `未知舰船 ID ${ship.id}`,
           stype: base ? base.api_stype : 0,
           stypeName: base ? (stypeNameById.get(base.api_stype) ?? "未知") : "未知",
@@ -509,16 +532,17 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
                 {(() => { const ids = new Set(filteredShips.map(s => s.orig)); return ids.size; })()}
                 /
                 {(() => {
-                  let list = shipHpData as { orig?: number; id: number }[];
-                  if (stypeFilter !== 0) {
-                    const stypeIds = new Set(start2.api_mst_ship.filter((s: any) => s.api_stype === stypeFilter).map((s: any) => s.api_id));
-                    list = list.filter(s => stypeIds.has(s.id));
-                  }
                   const kw = searchText.trim().toLowerCase();
-                  if (kw) {
-                    list = list.filter(s => (shipNameById.get(s.id) ?? "").toLowerCase().includes(kw));
+                  const ids = new Set<number>();
+                  for (const entry of shipHpData as { id: number }[]) {
+                    const b = shipBaseById.get(entry.id);
+                    if (stypeFilter !== 0 && (!b || b.api_stype !== stypeFilter)) continue;
+                    if (kw) {
+                      const n = shipNameById.get(entry.id);
+                      if (!n || !n.toLowerCase().includes(kw)) continue;
+                    }
+                    ids.add(origByShipId.get(entry.id) ?? entry.id);
                   }
-                  const ids = new Set(list.map(s => s.orig ?? s.id));
                   return ids.size;
                 })()}种
               </span>
