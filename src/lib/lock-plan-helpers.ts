@@ -20,6 +20,7 @@ type ShipMaster = {
   api_tyku?: number | number[];
   api_souk?: number | number[];
   api_luck?: number | number[];
+  api_taik?: number | number[];
 };
 
 export const shipMasters = start2.api_mst_ship as ShipMaster[];

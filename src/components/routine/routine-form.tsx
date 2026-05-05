@@ -271,7 +271,7 @@ export function RoutineRecords({
                 }).catch(() => {});
               }
             }}
-            readOnly={isViewer}
+            readOnly={isViewer ?? undefined}
             title={viewingRecord ? `${viewingRecord.seaArea} / ${viewingRecord.missionName}` : undefined}
             onBack={() => { setViewingRecord(null); setEditingRecord(false); setHideEditor(false); }}
           />

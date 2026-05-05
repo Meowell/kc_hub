@@ -383,7 +383,7 @@ function levelColor(level: number): string {
   return "text-slate-500";
 }
 
-type ShipSortKey = "id" | "lv" | "fire" | "torpedo" | "armor" | "luck" | "asw";
+type ShipSortKey = "shipId" | "level" | "fire" | "torpedo" | "armor" | "luck" | "asw";
 const shipStatHeaders: { key: ShipSortKey; label: string }[] = [
   { key: "fire", label: "火" },
   { key: "torpedo", label: "雷" },
@@ -405,7 +405,7 @@ function ShipPickerModal({
 }) {
   const [search, setSearch] = useState("");
   const [stypeFilter, setStypeFilter] = useState(0);
-  const [sortKey, setSortKey] = useState<ShipSortKey>("lv");
+  const [sortKey, setSortKey] = useState<ShipSortKey>("level");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const stypeOptions = useMemo(() => {
@@ -422,11 +422,7 @@ function ShipPickerModal({
     const kw = search.trim().toLowerCase();
     if (kw) list = list.filter((s) => s.name.toLowerCase().includes(kw) || String(s.shipId).includes(kw));
     const dir = sortDir === "asc" ? 1 : -1;
-    return [...list].sort((a, b) => {
-      if (sortKey === "id") return (a.shipId - b.shipId) * dir;
-      if (sortKey === "lv") return (a.level - b.level) * dir;
-      return ((a[sortKey] as number) - (b[sortKey] as number)) * dir;
-    });
+    return [...list].sort((a, b) => ((a[sortKey] as number) - (b[sortKey] as number)) * dir);
   }, [stock, stypeFilter, search, sortKey, sortDir]);
 
   function handleSort(key: ShipSortKey) {
@@ -464,8 +460,8 @@ function ShipPickerModal({
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-slate-800/90 backdrop-blur-sm">
                 <tr className="border-b border-slate-700/50">
-                  <th className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-12" onClick={() => handleSort("id")}>ID</th>
-                  <th className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-10" onClick={() => handleSort("lv")}>Lv</th>
+                  <th className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-12" onClick={() => handleSort("shipId")}>ID</th>
+                  <th className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-10" onClick={() => handleSort("level")}>Lv</th>
                   <th className="text-left px-2 py-2 font-medium text-slate-400">舰船名</th>
                   {shipStatHeaders.map((h) => (
                     <th key={h.key} className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-10" onClick={() => handleSort(h.key)}>{h.label}</th>

@@ -32,7 +32,7 @@ for (const s of start2.api_mst_ship as ShipMaster[]) {
 
 // 预计算的婚舰HP数据（来自kc-web的master.json）
 const shipHpById = new Map(
-  (shipHpData as { id: number; hp: number; hp2: number; max_hp: number }[]).map((s) => [s.id, s]),
+  (shipHpData as { id: number; hp: number; hp2: number; max_hp: number; orig?: number }[]).map((s) => [s.id, s]),
 );
 
 type StypeMaster = { api_id: number; api_name: string };
