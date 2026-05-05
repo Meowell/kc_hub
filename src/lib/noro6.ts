@@ -1,3 +1,5 @@
+import { masterByShipId } from "@/lib/lock-plan-helpers";
+
 export type Noro6Ship = {
   id: number;
   lv: number;
@@ -146,10 +148,6 @@ export function parseNoro6Data(value: string): Noro6Data {
 }
 
 export function deriveShipStock(shipData: string): ShipStock[] {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { masterByShipId } = require("@/lib/lock-plan-helpers") as {
-    masterByShipId: Map<number, Record<string, unknown>>;
-  };
 
   const occurrenceByShipId = new Map<number, number>();
 
