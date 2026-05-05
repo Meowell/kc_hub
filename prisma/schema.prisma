@@ -12,6 +12,7 @@ model User {
   name           String          @unique
   pinCode        String
   avatarUrl      String?
+  backgroundUrl  String?
   shipData       String?
   routineRecords RoutineRecord[]
   lockPlans      LockPlan[]

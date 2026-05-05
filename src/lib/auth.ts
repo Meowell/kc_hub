@@ -18,6 +18,7 @@ export async function getCurrentUser() {
       id: true,
       name: true,
       avatarUrl: true,
+      backgroundUrl: true,
       shipData: true,
       createdAt: true,
       updatedAt: true,

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 
 const allowedImageTypes = new Map([
@@ -29,4 +29,10 @@ export async function saveUploadedImage(file: File) {
   await writeFile(fullPath, buffer);
 
   return `/uploads/${fileName}`;
+}
+
+export async function deleteUploadedFile(url: string) {
+  if (!url || !url.startsWith("/uploads/")) return;
+  const dir = process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
+  try { await unlink(path.join(dir, url.replace("/uploads/", ""))); } catch { /* ignore */ }
 }

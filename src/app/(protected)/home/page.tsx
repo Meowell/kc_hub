@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { AvatarEditor } from "@/components/common/avatar-editor";
+import { ImageUploader } from "@/components/common/image-uploader";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/lib/auth";
 import Link from "next/link";
@@ -31,6 +32,16 @@ export default async function HomePage() {
       </div>
 
       <AvatarEditor initialAvatarUrl={user.avatarUrl} userName={user.name} />
+
+      <ImageUploader
+        label="页面背景"
+        icon="🎨"
+        initialUrl={user.backgroundUrl}
+        apiEndpoint="/api/auth/background"
+        fieldName="backgroundUrl"
+        preview={user.backgroundUrl ? <img src={user.backgroundUrl} alt="bg" className="w-24 h-16 rounded-lg object-cover ring-1 ring-slate-600" /> : <span className="w-24 h-16 rounded-lg bg-slate-700/50 flex items-center justify-center text-xs text-slate-500">无背景</span>}
+        reloadOnChange
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {statsConfig.map((stat) => (

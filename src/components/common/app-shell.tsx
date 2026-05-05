@@ -15,11 +15,11 @@ function cx(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-export function AppShell({ children, userName, avatarUrl }: { children: React.ReactNode; userName: string; avatarUrl?: string }) {
+export function AppShell({ children, userName, avatarUrl, backgroundUrl }: { children: React.ReactNode; userName: string; avatarUrl?: string; backgroundUrl?: string }) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col" style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: "cover", backgroundAttachment: "fixed", backgroundPosition: "center" } : undefined}>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-700/50 bg-slate-900/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
