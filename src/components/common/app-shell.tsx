@@ -65,6 +65,7 @@ export function AppShell({ children, userName, avatarUrl, backgroundUrl }: { chi
             <span className="hidden sm:inline text-sm text-slate-400">{userName}</span>
             <Link
               href="/logout"
+              prefetch={false}
               className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
             >
               退出
