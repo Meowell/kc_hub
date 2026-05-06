@@ -35,10 +35,14 @@ export async function POST(request: Request) {
   const token = await createSessionToken({ userId: user.id, name: user.name });
   const response = NextResponse.json({ user });
 
+  const isSecure =
+    request.url.startsWith("https:") ||
+    request.headers.get("x-forwarded-proto") === "https";
+
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecure,
     maxAge: SESSION_MAX_AGE,
     path: "/",
   });
