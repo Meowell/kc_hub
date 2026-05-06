@@ -20,6 +20,7 @@ export async function getCurrentUser() {
       avatarUrl: true,
       backgroundUrl: true,
       shipData: true,
+      food: true,
       createdAt: true,
       updatedAt: true,
     },
