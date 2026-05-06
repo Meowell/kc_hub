@@ -19,6 +19,7 @@ model User {
   strategyPosts  StrategyPost[]
   lockPlans      LockPlan[]
   dailyCheckIns  DailyCheckIn[]
+  gameScores     GameScore[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
@@ -100,4 +101,17 @@ model LockPlan {
   @@unique([userId, tagId])
   @@index([userId])
   @@index([tagId])
+}
+
+model GameScore {
+  id        String   @id @default(cuid())
+  userId    String
+  gameType  String   // "dino" | "survivor" | "invaders"
+  score     Int      // 存活秒数
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([gameType, score(sort: Desc)])
+  @@index([userId])
 }
