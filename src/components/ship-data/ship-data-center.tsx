@@ -420,7 +420,7 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
       <select
         value={vid ?? ""}
         onChange={(e) => onSwitch(e.target.value || null)}
-        className="bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50"
+        className="w-full max-w-full rounded-md border border-slate-600 bg-slate-700 px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50 sm:w-auto"
       >
         <option value="">视角：{currentUserName}</option>
         {users.map((u) => (
@@ -433,7 +433,7 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
   }
 
   const cardBase =
-    "rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm shadow-lg shadow-black/10";
+    "min-w-0 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm shadow-lg shadow-black/10";
 
   const thClass =
     "text-center px-1.5 py-2.5 font-medium text-slate-400 cursor-pointer select-none hover:text-slate-200 transition-colors";
@@ -453,14 +453,14 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Row 1: noro6 import card + placeholders */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         {/* noro6 import card */}
         <div className={`${cardBase} p-4`}>
           <form onSubmit={onSubmit} className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-2">
                 <span className="text-base">💾</span>
                 <h2 className="text-sm font-semibold text-white">noro6 数据导入</h2>
               </div>
@@ -482,13 +482,13 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
                 {message}
               </div>
             )}
-            <div className="flex gap-2">
-              <Button type="submit" disabled={isSaving} className="flex-1 text-xs h-8">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button type="submit" disabled={isSaving} className="h-8 text-xs">
                 {isSaving ? "⏳ 更新中..." : "💾 更新"}
               </Button>
               <Button
                 type="button"
-                className="flex-1 text-xs h-8"
+                className="h-8 text-xs"
                 onClick={() => {
                   navigator.clipboard.writeText(inputData).then(
                     () => setMessage("已复制到剪贴板 ✅"),
@@ -519,15 +519,15 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
       </div>
 
       {/* Row 2: 拥有舰船 (wider) + 拥有装备 (wide) */}
-      <div className="flex flex-col lg:flex-row gap-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:flex-row">
         {/* 拥有舰船 */}
-        <div className={`${cardBase} lg:w-[560px]`}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
-            <div className="flex items-center gap-2">
+        <div className={`${cardBase} w-full lg:w-[560px] lg:shrink-0`}>
+          <div className="flex flex-col gap-3 border-b border-slate-700/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
               <span className="text-lg">🚢</span>
               <h2 className="font-semibold text-white">拥有舰船</h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
                 {(() => { const ids = new Set(filteredShips.map(s => s.orig)); return ids.size; })()}
                 /
@@ -558,18 +558,18 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
           ) : (
             <>
               {/* Filter bar */}
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/30 bg-slate-800/50">
+              <div className="grid grid-cols-1 gap-2 border-b border-slate-700/30 bg-slate-800/50 px-4 py-2 sm:flex sm:items-center">
                 <input
                   type="text"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   placeholder="搜索舰名..."
-                  className="flex-1 bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-blue-500/50"
+                  className="min-w-0 rounded-md border border-slate-600 bg-slate-700 px-2 py-1 text-xs text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500/50 sm:flex-1"
                 />
                 <select
                   value={stypeFilter}
                   onChange={(e) => setStypeFilter(Number(e.target.value))}
-                  className="bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50"
+                  className="w-full rounded-md border border-slate-600 bg-slate-700 px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50 sm:w-auto"
                 >
                   <option value={0}>全部舰种</option>
                   {stypeOptions.map((t) => (
@@ -581,14 +581,14 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
                 {(stypeFilter !== 0 || searchText.trim()) && (
                   <button
                     onClick={() => { setStypeFilter(0); setSearchText(""); }}
-                    className="text-xs text-slate-500 hover:text-slate-300 shrink-0"
+                    className="justify-self-start text-xs text-slate-500 hover:text-slate-300 sm:shrink-0"
                   >
                     清除
                   </button>
                 )}
               </div>
               <div className="max-h-96 overflow-auto">
-              <table className="w-full text-sm table-fixed">
+              <table className="w-full min-w-[520px] table-fixed text-sm">
                 <thead className="sticky top-0 bg-slate-800/90 backdrop-blur-sm">
                   <tr className="border-b border-slate-700/50">
                     <ThSort label="ID" sortKey="id" />
@@ -639,12 +639,12 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
 
         {/* 拥有装备 */}
         <div className={`${cardBase} flex-1`}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 border-b border-slate-700/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
               <span className="text-lg">🔧</span>
               <h2 className="font-semibold text-white">拥有装备</h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 {(() => { const ids = new Set(filteredItems.map(i => i.id)); return ids.size; })()}种
               </span>
@@ -659,18 +659,18 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
             </p>
           ) : (
             <>
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/30 bg-slate-800/50">
+              <div className="grid grid-cols-1 gap-2 border-b border-slate-700/30 bg-slate-800/50 px-4 py-2 sm:flex sm:items-center">
                 <input
                   type="text"
                   value={equipSearchText}
                   onChange={(e) => setEquipSearchText(e.target.value)}
                   placeholder="搜索装备名..."
-                  className="flex-1 bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-blue-500/50"
+                  className="min-w-0 rounded-md border border-slate-600 bg-slate-700 px-2 py-1 text-xs text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500/50 sm:flex-1"
                 />
                 <select
                   value={equipTypeFilter}
                   onChange={(e) => setEquipTypeFilter(Number(e.target.value))}
-                  className="bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50"
+                  className="w-full rounded-md border border-slate-600 bg-slate-700 px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50 sm:w-auto"
                 >
                   <option value={0}>全部装备</option>
                   {equipTypeOptions.map((t) => (
@@ -682,17 +682,17 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
                 {(equipTypeFilter !== 0 || equipSearchText.trim()) && (
                   <button
                     onClick={() => { setEquipTypeFilter(0); setEquipSearchText(""); }}
-                    className="text-xs text-slate-500 hover:text-slate-300 shrink-0"
+                    className="justify-self-start text-xs text-slate-500 hover:text-slate-300 sm:shrink-0"
                   >
                     清除
                   </button>
                 )}
               </div>
               <div className="max-h-96 overflow-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[520px] table-fixed text-sm">
                 <thead className="sticky top-0 bg-slate-800/90 backdrop-blur-sm">
                   <tr className="border-b border-slate-700/50">
-                    <th className="text-left px-5 py-2.5 font-medium text-slate-400">
+                    <th className="text-left px-4 py-2.5 font-medium text-slate-400 sm:px-5">
                       装备名
                     </th>
                     <th
@@ -731,8 +731,8 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
                       )}
                       onClick={() => item.isGroup && toggleExpand(item.id)}
                     >
-                      <td className="px-5 py-2.5 text-slate-200 font-medium">
-                        <span className={item.isGroup ? "" : "pl-4"}>
+                      <td className="px-4 py-2.5 font-medium text-slate-200 sm:px-5">
+                        <span className={cn("block truncate", item.isGroup ? "" : "pl-4")}>
                           {item.isGroup && (
                             <span className="text-slate-500 text-xs mr-1.5">
                               {expandedIds.has(item.id) ? "▼" : "▶"}

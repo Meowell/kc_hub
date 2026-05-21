@@ -97,7 +97,7 @@ export function AppShell({ children, userName, avatarUrl, backgroundUrl }: { chi
       </header>
 
       {/* Main */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-8">{children}</main>
+      <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
 
       {/* Footer */}
       <footer className="border-t border-slate-800 py-4 text-center text-xs text-slate-600">

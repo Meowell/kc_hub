@@ -6,11 +6,11 @@ export default async function DashboardPage() {
   const user = await requireCurrentUser();
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <span className="text-3xl">📊</span> 数据中心
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-2 text-xl font-bold text-white sm:text-2xl">
+            <span className="text-2xl sm:text-3xl">📊</span> 数据中心
           </h1>
           <p className="mt-1.5 text-sm text-slate-400">
             上传 noro6 舰船存档，解锁大部分功能。
