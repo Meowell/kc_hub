@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { deleteUploadedFile, isUploadedFileUrl } from "@/lib/storage";
 
 export async function PATCH(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
 
   const { backgroundUrl } = (await request.json()) as { backgroundUrl?: string | null };
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -10,7 +10,8 @@ const bodySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireApiUser();
+    const user = await getApiUser();
+    if (!user) return unauthorizedApiResponse();
     const body = await req.json();
     const { gameType, score } = bodySchema.parse(body);
 
@@ -81,7 +82,6 @@ export async function POST(req: NextRequest) {
       top3: top3.map((r) => ({ name: r.user.name, score: r.score })),
     });
   } catch (error) {
-    if (error instanceof Response) throw error;
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "参数错误" }, { status: 400 });
     }

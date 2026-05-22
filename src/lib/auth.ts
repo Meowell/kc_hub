@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
@@ -37,15 +38,10 @@ export async function requireCurrentUser() {
   return user;
 }
 
-export async function requireApiUser() {
-  const user = await getCurrentUser();
+export async function getApiUser() {
+  return getCurrentUser();
+}
 
-  if (!user) {
-    throw new Response(JSON.stringify({ error: "请先登录" }), {
-      status: 401,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  return user;
+export function unauthorizedApiResponse() {
+  return NextResponse.json({ error: "请先登录" }, { status: 401 });
 }

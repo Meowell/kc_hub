@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { strategyPostSchema } from "@/lib/validators";
 
 export async function GET() {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
 
   const posts = await prisma.strategyPost.findMany({
     orderBy: [{ phaseName: "asc" }, { createdAt: "desc" }],
@@ -16,7 +17,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = strategyPostSchema.safeParse(await request.json());
 
   if (!parsed.success) {
@@ -39,7 +41,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = strategyPostSchema.safeParse(await request.json());
 
   if (!parsed.success || !parsed.data.id) {
@@ -66,7 +69,8 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

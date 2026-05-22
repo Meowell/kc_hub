@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { routineRecordSchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const seaArea = searchParams.get("seaArea") ?? undefined;
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
@@ -35,7 +36,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = routineRecordSchema.safeParse(await request.json());
 
   if (!parsed.success) {
@@ -58,7 +60,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = routineRecordSchema.safeParse(await request.json());
 
   if (!parsed.success || !parsed.data.id) {
@@ -81,7 +84,8 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

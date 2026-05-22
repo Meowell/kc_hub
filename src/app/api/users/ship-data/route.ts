@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { parseNoro6Data } from "@/lib/noro6";
 import { prisma } from "@/lib/prisma";
 import { shipDataSchema } from "@/lib/validators";
 
 export async function GET(request: NextRequest) {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const userId = request.nextUrl.searchParams.get("userId");
 
   if (userId) {
@@ -18,12 +19,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ shipData: target.shipData ?? "" });
   }
 
-  const user = await requireApiUser();
   return NextResponse.json({ shipData: user.shipData ?? "" });
 }
 
 export async function PUT(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = shipDataSchema.safeParse(await request.json());
 
   if (!parsed.success) {

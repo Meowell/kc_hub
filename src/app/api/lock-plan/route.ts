@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertLockAssignmentsString, lockPlanSchema } from "@/lib/validators";
 
 export async function GET() {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const plans = await prisma.lockPlan.findMany({
     where: { userId: user.id },
     include: { tag: true },
@@ -16,7 +17,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = lockPlanSchema.safeParse(await request.json());
 
   if (!parsed.success || !assertLockAssignmentsString(parsed.data.assignedData)) {
@@ -36,7 +38,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = lockPlanSchema.safeParse(await request.json());
 
   if (!parsed.success || !parsed.data.id || !assertLockAssignmentsString(parsed.data.assignedData)) {
@@ -56,7 +59,8 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

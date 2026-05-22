@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 import https from "https";
@@ -27,7 +27,8 @@ function fetchJson(url: string): Promise<unknown> {
 }
 
 export async function POST() {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
 
   const results: string[] = [];
   const errors: string[] = [];

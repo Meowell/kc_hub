@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { saveUploadedImage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
 
   const formData = await request.formData();
   const file = formData.get("file");

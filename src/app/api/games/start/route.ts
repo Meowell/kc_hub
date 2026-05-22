@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 
 export async function POST() {
   try {
-    const user = await requireApiUser();
+    const user = await getApiUser();
+    if (!user) return unauthorizedApiResponse();
 
     // 检查粮食是否足够
     if (user.food < 1) {
@@ -20,7 +21,6 @@ export async function POST() {
 
     return NextResponse.json({ food: updated.food });
   } catch (error) {
-    if (error instanceof Response) throw error;
     console.error("[games/start]", error);
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }

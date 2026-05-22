@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
 
   const [tags, users, allPlans] = await Promise.all([
     prisma.lockTag.findMany({

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 function getTodayDateString(): string {
@@ -15,7 +15,8 @@ function randomReward(min: number, max: number): number {
 }
 
 export async function POST() {
-  const user = await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const today = getTodayDateString();
 
   // 检查今天是否已签到

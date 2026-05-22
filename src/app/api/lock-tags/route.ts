@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { requireApiUser } from "@/lib/auth";
+import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { lockTagSchema } from "@/lib/validators";
 
 export async function GET() {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const tags = await prisma.lockTag.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -14,7 +15,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = lockTagSchema.safeParse(await request.json());
 
   if (!parsed.success) {
@@ -35,7 +37,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const parsed = lockTagSchema.safeParse(await request.json());
 
   if (!parsed.success || !parsed.data.id) {
@@ -53,7 +56,8 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  await requireApiUser();
+  const user = await getApiUser();
+  if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 
