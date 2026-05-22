@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { getShipName, getShipType, shipTypeLabels, masterByShipId } from "@/lib/lock-plan-helpers";
+import { shipTypeLabels } from "@/lib/lock-plan-helpers";
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +26,9 @@ type ShipPickerModalProps = {
   onOpenChange: (open: boolean) => void;
   ships: ShipStock[];
   shipLocks: Map<string, ShipLockInfo>; // uniqueId -> { tagColorClass, tagName }
+  getShipName: (shipId: number) => string;
+  getShipType: (shipId: number) => string;
+  getShipTypeId: (shipId: number) => string;
   onSelectShip: (ship: ShipStock) => void;
 };
 
@@ -41,6 +44,9 @@ export function ShipPickerModal({
   onOpenChange,
   ships,
   shipLocks,
+  getShipName,
+  getShipType,
+  getShipTypeId,
   onSelectShip,
 }: ShipPickerModalProps) {
   const [query, setQuery] = useState("");
@@ -56,11 +62,11 @@ export function ShipPickerModal({
           !q || name.toLowerCase().includes(q) || String(ship.shipId).includes(q);
         const matchesType =
           shipType === "all" ||
-          String(masterByShipId.get(ship.shipId)?.api_stype ?? "") === shipType;
+          getShipTypeId(ship.shipId) === shipType;
         return matchesQuery && matchesType;
       })
       .sort((a, b) => b.level - a.level);
-  }, [ships, deferredQuery, shipType]);
+  }, [ships, deferredQuery, shipType, getShipName, getShipTypeId]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

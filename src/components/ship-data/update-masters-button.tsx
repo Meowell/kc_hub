@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { notifyMasterDataUpdated } from "@/lib/master-data-events";
 
 async function updateMasters(): Promise<{ success: boolean; results: string[]; errors?: string[] }> {
   const res = await fetch("/api/update-masters", { method: "POST" });
@@ -20,6 +21,7 @@ export function UpdateMastersButton() {
       const data = await updateMasters();
       if (data.success) {
         setMsg(data.results.join(" · "));
+        notifyMasterDataUpdated();
       } else {
         setErr((data.errors ?? ["更新失败"]).join("\n"));
       }

@@ -4,82 +4,15 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import start2 from "@/data/START2.json";
-import shipHpData from "@/data/shipHp.json";
+import { createMasterLookup } from "@/lib/master-data";
 import { parseNoro6Data, normalizeNoro6Input } from "@/lib/noro6";
+import { useMasterData } from "@/lib/use-master-data";
 
-// ---- Master data ----
-
-type ShipMaster = {
-  api_id: number;
-  api_name: string;
-  api_stype: number;
-  api_houg: [number, number];
-  api_raig: [number, number];
-  api_tyku: [number, number];
-  api_souk: [number, number];
-  api_luck: [number, number];
-  api_taik: [number, number];
-};
-
-const shipNameById = new Map<number, string>();
-const shipBaseById = new Map<number, ShipMaster>();
-
-for (const s of start2.api_mst_ship as ShipMaster[]) {
-  shipNameById.set(s.api_id, s.api_name);
-  shipBaseById.set(s.api_id, s);
+function baseMin(raw: number | number[] | undefined): number {
+  if (Array.isArray(raw)) return raw[0] ?? 0;
+  if (typeof raw === "number") return raw;
+  return 0;
 }
-
-// 构建改修链追溯：shipId -> 链最前端的原始船ID
-type ChainShip = { api_id: number; api_aftershipid?: string };
-const remodelFrom = new Map<number, number>();
-for (const s of start2.api_mst_ship as unknown as ChainShip[]) {
-  const after = s.api_aftershipid ? Number(s.api_aftershipid) : 0;
-  if (after) remodelFrom.set(after, s.api_id);
-}
-const origByShipId = new Map<number, number>();
-function getRemodelRoot(shipId: number): number {
-  let cur = shipId;
-  const seen = new Set<number>();
-  while (true) {
-    const from = remodelFrom.get(cur);
-    if (!from || seen.has(from)) break;
-    seen.add(from);
-    cur = from;
-  }
-  return cur;
-}
-for (const s of start2.api_mst_ship as unknown as ChainShip[]) {
-  origByShipId.set(s.api_id, getRemodelRoot(s.api_id));
-}
-
-// 预计算的婚舰HP数据（来自kc-web的master.json）
-const shipHpById = new Map(
-  (shipHpData as { id: number; hp: number; hp2: number; max_hp: number; orig?: number }[]).map((s) => [s.id, s]),
-);
-
-type StypeMaster = { api_id: number; api_name: string };
-const stypeNameById = new Map(
-  (start2.api_mst_stype as StypeMaster[]).map((t) => [t.api_id, t.api_name]),
-);
-
-function baseMin(raw: [number, number] | number): number {
-  if (Array.isArray(raw)) return raw[0];
-  return raw as number;
-}
-
-type EquipMaster = { api_id: number; api_name: string; api_type: number[] };
-const equipNameById = new Map<number, string>();
-const equipTypeById = new Map<number, number>();
-for (const e of start2.api_mst_slotitem as EquipMaster[]) {
-  equipNameById.set(e.api_id, e.api_name);
-  equipTypeById.set(e.api_id, e.api_type?.[2] ?? 0);
-}
-
-type EquipTypeMaster = { api_id: number; api_name: string };
-const equipTypeNameById = new Map(
-  (start2.api_mst_slotitem_equiptype as EquipTypeMaster[]).map((t) => [t.api_id, t.api_name]),
-);
 
 // ---- Ship row type ----
 
@@ -122,6 +55,8 @@ const statHeaders: { key: SortKey; label: string }[] = [
 // ---- Component ----
 
 export function ShipDataCenter({ initialShipData, currentUserName }: { initialShipData: string; currentUserName: string }) {
+  const { masterData } = useMasterData();
+  const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const [shipData, setShipData] = useState(initialShipData);
   const [inputData, setInputData] = useState("");
   const [message, setMessage] = useState("");
@@ -153,20 +88,20 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
     if (!shipData.trim()) return [] as ShipRow[];
     try {
       return parseNoro6Data(shipData).ships.map((ship, index) => {
-        const base = shipBaseById.get(ship.id);
+        const base = masterLookup.shipBaseById.get(ship.id);
         const mod = ship.st ?? [];
         return {
           rowId: `${ship.id}-${index}`,
           id: ship.id,
-          orig: origByShipId.get(ship.id) ?? ship.id,
-          name: shipNameById.get(ship.id) ?? `未知舰船 ID ${ship.id}`,
+          orig: masterLookup.origByShipId.get(ship.id) ?? ship.id,
+          name: masterLookup.shipNameById.get(ship.id) ?? `未知舰船 ID ${ship.id}`,
           stype: base ? base.api_stype : 0,
-          stypeName: base ? (stypeNameById.get(base.api_stype) ?? "未知") : "未知",
+          stypeName: base ? (masterLookup.stypeNameById.get(base.api_stype) ?? "未知") : "未知",
           lv: ship.lv,
           hp:
             (() => {
               if (!base) return 0;
-              const hpData = shipHpById.get(ship.id);
+              const hpData = masterLookup.shipHpById.get(ship.id);
               const baseHp = hpData ? (ship.lv > 99 ? hpData.hp2 : hpData.hp) : baseMin(base.api_taik);
               return baseHp + (mod[5] ?? 0);
             })(),
@@ -180,7 +115,7 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
     } catch {
       return [] as ShipRow[];
     }
-  }, [shipData]);
+  }, [shipData, masterLookup]);
 
   const sortedShips = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -256,7 +191,7 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
             rowId: key,
             id,
             lv,
-            name: equipNameById.get(id) ?? `未知装备 ID ${id}`,
+            name: masterLookup.equipNameById.get(id) ?? `未知装备 ID ${id}`,
             count,
           };
         })
@@ -264,7 +199,7 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
     } catch {
       return [];
     }
-  }, [shipData]);
+  }, [shipData, masterLookup]);
 
   // Equipment filter & sort state
   const [equipSortKey, setEquipSortKey] = useState<"id" | "lv" | "count">("id");
@@ -277,20 +212,20 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
     const seen = new Set<number>();
     const opts: { id: number; name: string }[] = [];
     for (const item of parsedItems) {
-      const tid = equipTypeById.get(item.id) ?? 0;
+      const tid = masterLookup.equipTypeById.get(item.id) ?? 0;
       if (tid && !seen.has(tid)) {
         seen.add(tid);
-        opts.push({ id: tid, name: equipTypeNameById.get(tid) ?? `类型${tid}` });
+        opts.push({ id: tid, name: masterLookup.equipTypeNameById.get(tid) ?? `类型${tid}` });
       }
     }
     opts.sort((a, b) => a.id - b.id);
     return opts;
-  }, [parsedItems]);
+  }, [parsedItems, masterLookup]);
 
   const filteredItems = useMemo(() => {
     let list = parsedItems;
     if (equipTypeFilter !== 0) {
-      list = list.filter((item) => (equipTypeById.get(item.id) ?? 0) === equipTypeFilter);
+      list = list.filter((item) => (masterLookup.equipTypeById.get(item.id) ?? 0) === equipTypeFilter);
     }
     const kw = equipSearchText.trim().toLowerCase();
     if (kw) {
@@ -298,7 +233,7 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
     }
     const dir = equipSortDir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => (a[equipSortKey] - b[equipSortKey]) * dir);
-  }, [parsedItems, equipSortKey, equipSortDir, equipSearchText, equipTypeFilter]);
+  }, [parsedItems, equipSortKey, equipSortDir, equipSearchText, equipTypeFilter, masterLookup]);
 
   // 折叠/展开：同ID装备默认折叠，展开后显示各改修等级
   const displayItems = useMemo(() => {
@@ -534,14 +469,14 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
                 {(() => {
                   const kw = searchText.trim().toLowerCase();
                   const ids = new Set<number>();
-                  for (const entry of shipHpData as { id: number }[]) {
-                    const b = shipBaseById.get(entry.id);
+                  for (const entry of masterData.shipHp) {
+                    const b = masterLookup.shipBaseById.get(entry.id);
                     if (stypeFilter !== 0 && (!b || b.api_stype !== stypeFilter)) continue;
                     if (kw) {
-                      const n = shipNameById.get(entry.id);
+                      const n = masterLookup.shipNameById.get(entry.id);
                       if (!n || !n.toLowerCase().includes(kw)) continue;
                     }
-                    ids.add(origByShipId.get(entry.id) ?? entry.id);
+                    ids.add(masterLookup.origByShipId.get(entry.id) ?? entry.id);
                   }
                   return ids.size;
                 })()}种

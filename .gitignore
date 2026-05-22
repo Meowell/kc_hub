@@ -24,3 +24,6 @@ Thumbs.db
 
 # User uploaded files
 public/uploads/*
+
+# Runtime-downloaded master data
+runtime-data/

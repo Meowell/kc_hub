@@ -1,47 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
-  parseFleetData,
-  equipNameMap,
-  shipSlotCountMap,
+  createFleetParser,
+  type FleetParser,
   type ParsedShip,
 } from "@/lib/fleet-parser";
+import { createMasterLookup, type MasterLookup } from "@/lib/master-data";
 import { parseNoro6Data } from "@/lib/noro6";
-import start2 from "@/data/START2.json";
-import shipHpData from "@/data/shipHp.json";
-
-/* ── Master data ── */
-
-type ShipMaster = {
-  api_id: number;
-  api_name: string;
-  api_stype: number;
-  api_houg?: number | number[];
-  api_raig?: number | number[];
-  api_souk?: number | number[];
-  api_luck?: number | number[];
-};
-type StypeMaster = { api_id: number; api_name: string };
-
-const allShips = start2.api_mst_ship as ShipMaster[];
-const shipNameById = new Map(allShips.map((s) => [s.api_id, s.api_name]));
-const shipTypeById = new Map(allShips.map((s) => [s.api_id, s.api_stype]));
-const stypeNameById = new Map(
-  (start2.api_mst_stype as StypeMaster[]).map((t) => [t.api_id, t.api_name]),
-);
-const hpById = new Map(
-  (shipHpData as { id: number; hp: number; hp2: number; max_hp: number }[]).map(
-    (s) => [s.id, s],
-  ),
-);
-const shipSlotsById = new Map<number, number[]>();
-for (const s of allShips) {
-  const maxeq = (s as unknown as { api_maxeq?: number[] }).api_maxeq;
-  if (maxeq && maxeq.length > 0) shipSlotsById.set(s.api_id, maxeq);
-}
+import { useMasterData } from "@/lib/use-master-data";
 
 /* ── Ship type abbrev ── */
 
@@ -52,8 +21,8 @@ const SHIP_TYPE_ABBR: Record<number, string> = {
   20: "AS", 21: "CT", 22: "AO",
 };
 
-function getShipTypeAbbr(shipId: number): string {
-  const stype = shipTypeById.get(shipId);
+function getShipTypeAbbr(shipId: number, lookup: MasterLookup): string {
+  const stype = lookup.shipTypeById.get(shipId);
   return stype ? (SHIP_TYPE_ABBR[stype] ?? "?") : "?";
 }
 
@@ -85,11 +54,6 @@ interface StockEquip {
   lv: number;
 }
 
-const equipTypeById = new Map<number, number>();
-for (const e of start2.api_mst_slotitem as { api_id: number; api_type?: number[] }[]) {
-  equipTypeById.set(e.api_id, e.api_type?.[2] ?? 0);
-}
-
 const PLANE_TYPES = new Set([
   // 6:艦上戦闘機 7:艦上爆撃機 8:艦上攻撃機 9:艦上偵察機
   6,7,8,9,
@@ -104,12 +68,9 @@ const PLANE_TYPES = new Set([
   // 94:艦上偵察機(II)
   94,
 ]);
-function isPlane(equipId: number): boolean {
-  return PLANE_TYPES.has(equipTypeById.get(equipId) ?? 0);
+function isPlane(equipId: number, lookup: MasterLookup): boolean {
+  return PLANE_TYPES.has(lookup.equipTypeById.get(equipId) ?? 0);
 }
-const equipTypeNameById = new Map(
-  (start2.api_mst_slotitem_equiptype as { api_id: number; api_name: string }[]).map((t) => [t.api_id, t.api_name]),
-);
 
 /* ── Stock loaders ── */
 
@@ -134,25 +95,24 @@ function baseMin(raw: unknown): number {
   return 0;
 }
 
-function loadStockShips(shipData: string | null): StockShip[] {
+function loadStockShips(shipData: string | null, lookup: MasterLookup): StockShip[] {
   if (!shipData) return [];
   try {
     const parsed = parseNoro6Data(shipData);
     const occurrence = new Map<number, number>();
-    const baseById = new Map(allShips.map((s) => [s.api_id, s]));
     return parsed.ships.map((s) => {
       const idx = occurrence.get(s.id) ?? 0;
       occurrence.set(s.id, idx + 1);
-      const hp = hpById.get(s.id);
-      const base = baseById.get(s.id);
+      const hp = lookup.shipHpById.get(s.id);
+      const base = lookup.shipBaseById.get(s.id);
       const mod = s.st ?? [];
       return {
         uniqueId: `${s.id}:${idx}`,
         shipId: s.id,
         level: s.lv,
-        name: shipNameById.get(s.id) ?? `ID:${s.id}`,
+        name: lookup.shipNameById.get(s.id) ?? `ID:${s.id}`,
         stype: base ? base.api_stype : 0,
-        typeName: base ? (stypeNameById.get(base.api_stype) ?? "?") : "?",
+        typeName: base ? (lookup.stypeNameById.get(base.api_stype) ?? "?") : "?",
         maxHp: hp?.max_hp ?? hp?.hp ?? 99,
         fire: (base ? baseMin(base.api_houg) : 0) + (mod[0] ?? 0),
         torpedo: (base ? baseMin(base.api_raig) : 0) + (mod[1] ?? 0),
@@ -164,19 +124,19 @@ function loadStockShips(shipData: string | null): StockShip[] {
   } catch { return []; }
 }
 
-function loadStockEquips(shipData: string | null): StockEquip[] {
+function loadStockEquips(shipData: string | null, lookup: MasterLookup, parser: FleetParser): StockEquip[] {
   if (!shipData) return [];
   try {
     const parsed = parseNoro6Data(shipData);
     return parsed.items
       .filter((it) => typeof it.id === "number" && it.id > 0)
       .map((it) => {
-        const tid = equipTypeById.get(it.id) ?? 0;
+        const tid = lookup.equipTypeById.get(it.id) ?? 0;
         return {
           equipId: it.id,
-          name: equipNameMap.get(it.id) ?? `装備ID:${it.id}`,
+          name: parser.equipNameMap.get(it.id) ?? `装備ID:${it.id}`,
           typeId: tid,
-          typeName: equipTypeNameById.get(tid) ?? "その他",
+          typeName: lookup.equipTypeNameById.get(tid) ?? "その他",
           lv: it.lv ?? 0,
         };
       });
@@ -185,10 +145,10 @@ function loadStockEquips(shipData: string | null): StockEquip[] {
 
 /* ── Convert parsed DeckBuilder ships to EditorShip with full slots ── */
 
-function normalizeFleet(ships: ParsedShip[]): EditorShip[] {
+function normalizeFleet(ships: ParsedShip[], lookup: MasterLookup, parser: FleetParser): EditorShip[] {
   return ships.map((s) => {
-    const slotCount = s.slotCount ?? shipSlotCountMap.get(s.id) ?? 4;
-    const caps = shipSlotsById.get(s.id) ?? [];
+    const slotCount = s.slotCount ?? parser.shipSlotCountMap.get(s.id) ?? 4;
+    const caps = lookup.shipSlotsById.get(s.id) ?? [];
     const equipment: EquipSlot[] = [];
 
     // Regular slots (0..slotCount-1)
@@ -248,6 +208,7 @@ function EquipmentRow({
   slotIndex,
   cap,
   isExpanded,
+  isPlaneEquip,
   onClick,
   onUnequip,
 }: {
@@ -255,6 +216,7 @@ function EquipmentRow({
   slotIndex: number;
   cap: number | undefined;
   isExpanded: boolean;
+  isPlaneEquip: (equipId: number) => boolean;
   onClick?: () => void;
   onUnequip?: () => void;
 }) {
@@ -292,12 +254,12 @@ function EquipmentRow({
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
-        {slot.equipId != null && isPlane(slot.equipId) && (
+        {slot.equipId != null && isPlaneEquip(slot.equipId) && (
           <span className="text-[11px] font-bold text-amber-400 w-5">
             {slot.proficiency || ">>"}
           </span>
         )}
-        {(slot.equipId != null && isPlane(slot.equipId)) || slot.improvement !== undefined ? (
+        {(slot.equipId != null && isPlaneEquip(slot.equipId)) || slot.improvement !== undefined ? (
           <span className="inline-block w-[2rem] text-left text-cyan-400 text-[10px] font-medium">
             {slot.improvement !== undefined ? `★${slot.improvement < 10 ? slot.improvement : "max"}` : ""}
           </span>
@@ -322,13 +284,17 @@ function ShipCard({
   onShipClick,
   onEquipClick,
   onUnequipSlot,
+  getTypeAbbr,
+  isPlaneEquip,
 }: {
   ship: EditorShip;
   onShipClick?: () => void;
   onEquipClick?: (slotIndex: number) => void;
   onUnequipSlot?: (slotIndex: number) => void;
+  getTypeAbbr: (shipId: number) => string;
+  isPlaneEquip: (equipId: number) => boolean;
 }) {
-  const abbr = getShipTypeAbbr(ship.id);
+  const abbr = getTypeAbbr(ship.id);
   return (
     <div
       onClick={onShipClick}
@@ -364,6 +330,7 @@ function ShipCard({
               slotIndex={i}
               cap={cap}
               isExpanded={isExp}
+              isPlaneEquip={isPlaneEquip}
               onClick={onEquipClick ? () => onEquipClick(i) : undefined}
               onUnequip={onUnequipSlot ? () => onUnequipSlot(i) : undefined}
             />
@@ -594,31 +561,54 @@ export function FleetEditor({
   onBack?: () => void;
   title?: string;
 }) {
+  const { masterData } = useMasterData();
+  const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
+  const fleetParser = useMemo(() => createFleetParser(masterData), [masterData]);
+  const normalizeFleetForMaster = useCallback(
+    (ships: ParsedShip[]) => normalizeFleet(ships, masterLookup, fleetParser),
+    [fleetParser, masterLookup],
+  );
+  const getTypeAbbr = useCallback(
+    (shipId: number) => getShipTypeAbbr(shipId, masterLookup),
+    [masterLookup],
+  );
+  const isPlaneEquip = useCallback(
+    (equipId: number) => isPlane(equipId, masterLookup),
+    [masterLookup],
+  );
   const [rawText, setRawText] = useState(initialFleetData ?? "");
   const [fleet, setFleet] = useState<EditorShip[] | null>(() => {
     if (!initialFleetData) return null;
-    const result = parseFleetData(initialFleetData);
-    return result ? normalizeFleet(result.ships) : null;
+    const result = fleetParser.parseFleetData(initialFleetData);
+    return result ? normalizeFleetForMaster(result.ships) : null;
   });
   const [error, setError] = useState("");
   const [pickerShipSlot, setPickerShipSlot] = useState<number | null>(null);
   const [equipTarget, setEquipTarget] = useState<{ shipIdx: number; slotIdx: number } | null>(null);
 
-  const stockShips = useMemo(() => loadStockShips(shipData), [shipData]);
-  const stockEquips = useMemo(() => loadStockEquips(shipData), [shipData]);
+  const stockShips = useMemo(() => loadStockShips(shipData, masterLookup), [shipData, masterLookup]);
+  const stockEquips = useMemo(
+    () => loadStockEquips(shipData, masterLookup, fleetParser),
+    [fleetParser, masterLookup, shipData],
+  );
   const hasStock = stockShips.length > 0;
 
-  // Reload fleet when viewing different saved records
+  // Reload saved fleet records when the record or runtime master data changes.
   useEffect(() => {
     if (initialFleetData) {
-      const result = parseFleetData(initialFleetData);
-      setFleet(result ? normalizeFleet(result.ships) : null);
+      const result = fleetParser.parseFleetData(initialFleetData);
+      setFleet(result ? normalizeFleetForMaster(result.ships) : null);
       setRawText(initialFleetData);
-    } else if (!readOnly) {
+    }
+  }, [fleetParser, initialFleetData, normalizeFleetForMaster]);
+
+  // Clear the editor only when switching back to the new-record state.
+  useEffect(() => {
+    if (!initialFleetData && !readOnly) {
       setFleet(null);
       setRawText("");
     }
-  }, [initialFleetData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialFleetData, readOnly]);
 
   function serializeFleet(ships: EditorShip[]) {
     const f1: Record<string, unknown> = {};
@@ -643,21 +633,21 @@ export function FleetEditor({
 
   function handlePaste() {
     setError("");
-    const result = parseFleetData(rawText);
+    const result = fleetParser.parseFleetData(rawText);
     if (!result) {
       setError("无法解析数据，请确认是 DeckBuilder JSON 格式");
       updateFleet(null);
       return;
     }
-    updateFleet(normalizeFleet(result.ships));
+    updateFleet(normalizeFleetForMaster(result.ships));
   }
 
   function handleSwapShip(stockShip: StockShip) {
     if (pickerShipSlot === null || !fleet) return;
     const next = [...fleet];
-    const hp = hpById.get(stockShip.shipId);
-    const slotCount = shipSlotCountMap.get(stockShip.shipId) ?? 4;
-    const caps = shipSlotsById.get(stockShip.shipId) ?? [];
+    const hp = masterLookup.shipHpById.get(stockShip.shipId);
+    const slotCount = fleetParser.shipSlotCountMap.get(stockShip.shipId) ?? 4;
+    const caps = masterLookup.shipSlotsById.get(stockShip.shipId) ?? [];
     const equip: EquipSlot[] = [];
     for (let si = 0; si < slotCount; si++) {
       equip.push({ equipId: null, name: null });
@@ -773,6 +763,8 @@ export function FleetEditor({
               <ShipCard
                 key={i}
                 ship={ship}
+                getTypeAbbr={getTypeAbbr}
+                isPlaneEquip={isPlaneEquip}
                 onShipClick={canEdit ? () => setPickerShipSlot(i) : undefined}
                 onEquipClick={canEdit ? (slotIdx) => setEquipTarget({ shipIdx: i, slotIdx }) : undefined}
                 onUnequipSlot={canEdit ? (slotIdx) => handleUnequip(i, slotIdx) : undefined}

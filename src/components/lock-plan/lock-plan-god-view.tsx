@@ -7,8 +7,10 @@ import { ShipPickerModal, type ShipLockInfo } from "@/components/lock-plan/ship-
 import { TagManager } from "@/components/lock-plan/tag-manager";
 import { UserLockRow } from "@/components/lock-plan/user-lock-row";
 import { Separator } from "@/components/ui/separator";
-import { getShipName, parseAssignments, type LockAssignment } from "@/lib/lock-plan-helpers";
+import { parseAssignments, type LockAssignment } from "@/lib/lock-plan-helpers";
+import { createMasterLookup, getShipNameFromLookup, getShipTypeFromLookup } from "@/lib/master-data";
 import { deriveShipStock, type ShipStock } from "@/lib/noro6";
+import { useMasterData } from "@/lib/use-master-data";
 
 // ============================================================
 // Types matching API response shape
@@ -37,6 +39,21 @@ type LockPlanGodViewProps = {
 };
 
 export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewProps) {
+  const { masterData } = useMasterData();
+  const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
+  const getShipName = useCallback(
+    (shipId: number) => getShipNameFromLookup(masterLookup, shipId),
+    [masterLookup],
+  );
+  const getShipType = useCallback(
+    (shipId: number) => getShipTypeFromLookup(masterLookup, shipId),
+    [masterLookup],
+  );
+  const getShipTypeId = useCallback(
+    (shipId: number) => String(masterLookup.shipTypeById.get(shipId) ?? ""),
+    [masterLookup],
+  );
+
   // ---- Tag state (optimistic) ----
   const [tags, setTags] = useState<TagDTO[]>(initialTags);
 
@@ -67,13 +84,13 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     return map;
   });
 
-  // ---- Ship stocks per user (parsed from shipData, immutable after init) ----
-  const [shipsByUser, setShipsByUser] = useState<Record<string, ShipStock[]>>(() => {
+  // ---- Ship stocks per user (parsed from shipData and current runtime master data) ----
+  const shipsByUser = useMemo<Record<string, ShipStock[]>>(() => {
     const map: Record<string, ShipStock[]> = {};
     for (const u of initialUsers) {
       if (u.shipDataRaw && u.shipDataRaw.trim()) {
         try {
-          map[u.userId] = deriveShipStock(u.shipDataRaw);
+          map[u.userId] = deriveShipStock(u.shipDataRaw, masterLookup.masterByShipId);
         } catch {
           map[u.userId] = [];
         }
@@ -82,7 +99,7 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
       }
     }
     return map;
-  });
+  }, [initialUsers, masterLookup]);
 
   // ---- Picker state ----
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -546,6 +563,8 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
                 plans={derivedPlans}
                 ships={shipsByUser[user.userId] ?? []}
                 hasShipData={!!user.shipDataRaw?.trim()}
+                getShipName={getShipName}
+                getShipType={getShipType}
                 onCellClick={(_, tagId, cellIndex) => {
                   openPicker(user.userId, tagId, cellIndex);
                 }}
@@ -570,6 +589,9 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
         onOpenChange={setPickerOpen}
         ships={pickerUserId ? shipsByUser[pickerUserId] ?? [] : []}
         shipLocks={pickerUserId ? getShipLockMap(pickerUserId) : new Map()}
+        getShipName={getShipName}
+        getShipType={getShipType}
+        getShipTypeId={getShipTypeId}
         onSelectShip={handleSelectShip}
       />
 

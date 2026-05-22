@@ -16,6 +16,8 @@ type UserLockRowProps = {
   plans: PlanInfo[];
   ships: ShipStock[];
   hasShipData: boolean;
+  getShipName: (shipId: number) => string;
+  getShipType: (shipId: number) => string;
   onCellClick: (userId: string, tagId: string, rowIndex: number) => void;
   onRemoveShip: (userId: string, tagId: string, uniqueId: string) => void;
   onReorder?: (userId: string, tagId: string, newAssignments: (LockAssignment | null)[]) => void;
@@ -24,6 +26,7 @@ type UserLockRowProps = {
 
 export function UserLockRow({
   userId, userName, avatarUrl, tags, plans, ships, hasShipData,
+  getShipName, getShipType,
   onCellClick, onRemoveShip, onReorder, onDropShip,
 }: UserLockRowProps) {
   const planByTagId = new Map(plans.map((p) => [p.tagId, p]));
@@ -59,6 +62,8 @@ export function UserLockRow({
                 assignedData={plan?.assignedData ?? "[]"}
                 ships={ships}
                 userId={userId}
+                getShipName={getShipName}
+                getShipType={getShipType}
                 onCellClick={(tId, rowIdx) => onCellClick(userName, tId, rowIdx)}
                 onRemoveShip={(tId, uId) => onRemoveShip(userName, tId, uId)}
                 onReorder={(tId, newAssignments) => onReorder?.(userId, tId, newAssignments)}

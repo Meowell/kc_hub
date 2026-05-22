@@ -6,7 +6,8 @@ import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FleetEditor } from "@/components/routine/fleet-editor";
-import start2 from "@/data/START2.json";
+import { createMasterLookup } from "@/lib/master-data";
+import { useMasterData } from "@/lib/use-master-data";
 
 type Post = {
   id: string; phaseName: string; title: string; content: string;
@@ -24,7 +25,7 @@ type RoutineFull = {
 };
 
 type FleetShip = { name: string; level: number };
-function parseFleetShips(fleetData: string): FleetShip[] {
+function parseFleetShips(fleetData: string, shipNameById: Map<number, string>): FleetShip[] {
   const result: FleetShip[] = [];
   try {
     const json = JSON.parse(fleetData);
@@ -33,8 +34,7 @@ function parseFleetShips(fleetData: string): FleetShip[] {
     for (let i = 1; i <= 6; i++) {
       const s = f1[`s${i}`];
       if (s && s.id) {
-        const master = (start2.api_mst_ship as Array<{ api_id: number; api_name: string }>).find((m) => m.api_id === s.id);
-        result.push({ name: master?.api_name ?? `ID:${s.id}`, level: s.lv ?? 0 });
+        result.push({ name: shipNameById.get(s.id) ?? `ID:${s.id}`, level: s.lv ?? 0 });
       }
     }
   } catch { /* ignore */ }
@@ -46,6 +46,7 @@ function parseFleetShips(fleetData: string): FleetShip[] {
 function renderMarkdown(
   content: string,
   routineById: Map<string, RoutineFull>,
+  shipNameById: Map<number, string>,
   onToggleExpand: (id: string) => void,
   expandedCards: Set<string>,
 ): React.ReactNode {
@@ -82,7 +83,7 @@ function renderMarkdown(
               const cid = parts[i];
               const card = routineById.get(cid);
               if (card) {
-                const fleet = card.fleetData ? parseFleetShips(card.fleetData) : [];
+                const fleet = card.fleetData ? parseFleetShips(card.fleetData, shipNameById) : [];
                 const isExpanded = expandedCards.has(cid);
                 nodes.push(
                   <span key={`c${i}`} className="inline-block align-middle not-prose my-1 rounded-lg border border-blue-500/20 bg-slate-800/60 w-full">
@@ -150,6 +151,11 @@ function renderMarkdown(
 
 export function StrategyEditor({ posts, currentUserId, routineCards }: { posts: Post[]; currentUserId: string; routineCards: RoutineFull[] }) {
   const router = useRouter();
+  const { masterData } = useMasterData();
+  const shipNameById = useMemo(
+    () => createMasterLookup(masterData).shipNameById,
+    [masterData],
+  );
   const emptyForm = { phaseName: "", title: "", content: "" };
   const [f, setF] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -307,7 +313,7 @@ export function StrategyEditor({ posts, currentUserId, routineCards }: { posts: 
                         </div>
                       </div>
                       <div className="mt-3">
-                        {renderMarkdown(post.content, routineById, toggleExpand, expandedCards)}
+                        {renderMarkdown(post.content, routineById, shipNameById, toggleExpand, expandedCards)}
                       </div>
                     </div>
                   );

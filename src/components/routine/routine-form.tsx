@@ -1,18 +1,15 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FleetEditor } from "@/components/routine/fleet-editor";
-import start2 from "@/data/START2.json";
+import { createMasterLookup } from "@/lib/master-data";
+import { useMasterData } from "@/lib/use-master-data";
 
 /* ── Fleet preview helper ── */
-
-const previewShipNames = new Map(
-  (start2.api_mst_ship as { api_id: number; api_name: string }[]).map((s) => [s.api_id, s.api_name]),
-);
 
 function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
   const [show, setShow] = useState(false);
@@ -32,7 +29,7 @@ function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
   );
 }
 
-function FleetPreview({ fleetData }: { fleetData: string }) {
+function FleetPreview({ fleetData, shipNameById }: { fleetData: string; shipNameById: Map<number, string> }) {
   let ships: { name: string; level: number }[] = [];
   try {
     const json = JSON.parse(fleetData);
@@ -42,7 +39,7 @@ function FleetPreview({ fleetData }: { fleetData: string }) {
         const s = f1[`s${i}`];
         if (s && s.id) {
           ships.push({
-            name: previewShipNames.get(s.id) ?? `ID:${s.id}`,
+            name: shipNameById.get(s.id) ?? `ID:${s.id}`,
             level: s.lv ?? 0,
           });
         }
@@ -347,6 +344,12 @@ function RecordsList({
   onEditRecord: (r: Record) => void;
   onDeleteRecord: (r: Record) => void;
 }) {
+  const { masterData } = useMasterData();
+  const shipNameById = useMemo(
+    () => createMasterLookup(masterData).shipNameById,
+    [masterData],
+  );
+
   return (
     <div className="space-y-4">
       {records.length === 0 ? (
@@ -425,7 +428,7 @@ function RecordsList({
                     </p>
                   )}
                   {/* Fleet preview */}
-                  {r.fleetData && <FleetPreview fleetData={r.fleetData} />}
+                  {r.fleetData && <FleetPreview fleetData={r.fleetData} shipNameById={shipNameById} />}
                   {r.imageUrl && (
                     <div className="mt-4 rounded-lg border border-slate-700/50 overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,4 +1,4 @@
-import { masterByShipId } from "@/lib/lock-plan-helpers";
+import { createMasterLookup, fallbackMasterData, type ShipMaster } from "@/lib/master-data";
 
 export type Noro6Ship = {
   id: number;
@@ -26,6 +26,8 @@ export type ShipStock = {
   hp: number;
   asw: number;
 };
+
+const fallbackMasterByShipId = createMasterLookup(fallbackMasterData).masterByShipId;
 
 export function extractNoro6JsonText(value: string) {
   const trimmed = value.trim();
@@ -146,7 +148,10 @@ export function parseNoro6Data(value: string): Noro6Data {
   };
 }
 
-export function deriveShipStock(shipData: string): ShipStock[] {
+export function deriveShipStock(
+  shipData: string,
+  masterByShipId: Map<number, ShipMaster> = fallbackMasterByShipId,
+): ShipStock[] {
 
   const occurrenceByShipId = new Map<number, number>();
 

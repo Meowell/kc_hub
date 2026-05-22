@@ -2,12 +2,13 @@
 
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
-import { getShipName, getShipType } from "@/lib/lock-plan-helpers";
 
 type ShipCellProps = {
   assignment?: { uniqueId: string; shipId: number } | null;
   ship?: ShipStock | null;
   tagColorClass: string;
+  getShipName: (shipId: number) => string;
+  getShipType: (shipId: number) => string;
   onClick: () => void;
   onRemove: () => void;
   onDragStart?: (e: React.DragEvent) => void;
@@ -24,7 +25,7 @@ function levelColor(level: number): string {
 }
 
 export function ShipCell({
-  assignment, ship, tagColorClass, onClick, onRemove,
+  assignment, ship, tagColorClass, getShipName, getShipType, onClick, onRemove,
   onDragStart, onDrop, onDragOver, columnDragOver,
 }: ShipCellProps) {
   if (!assignment) {

@@ -1,4 +1,10 @@
-import start2 from "@/data/START2.json";
+import {
+  createMasterLookup,
+  fallbackMasterData,
+  getShipNameFromLookup,
+  getShipTypeFromLookup,
+  shipTypeLabels,
+} from "@/lib/master-data";
 
 // ============================================================
 // Shared helpers for lock-plan components
@@ -11,46 +17,18 @@ export type LockAssignment = {
   shipId: number;
 };
 
-type ShipMaster = {
-  api_id: number;
-  api_name: string;
-  api_stype: number;
-  api_houg?: number | number[];
-  api_raig?: number | number[];
-  api_tyku?: number | number[];
-  api_souk?: number | number[];
-  api_luck?: number | number[];
-  api_taik?: number | number[];
-};
+const fallbackLookup = createMasterLookup(fallbackMasterData);
 
-export const shipMasters = start2.api_mst_ship as ShipMaster[];
-export const masterByShipId = new Map(shipMasters.map((ship) => [ship.api_id, ship]));
-
-export const shipTypeLabels: Record<number, string> = {
-  1: "DE",
-  2: "DD",
-  3: "CL",
-  4: "CLT",
-  5: "CA",
-  6: "CAV",
-  7: "CVL",
-  8: "FBB",
-  9: "BB",
-  10: "BBV",
-  11: "CV",
-  16: "AV",
-  17: "LHA",
-  18: "SS",
-  19: "SSV",
-};
+export const shipMasters = fallbackLookup.allShips;
+export const masterByShipId = fallbackLookup.masterByShipId;
+export { shipTypeLabels };
 
 export function getShipName(shipId: number) {
-  return masterByShipId.get(shipId)?.api_name ?? `未知舰船 ${shipId}`;
+  return getShipNameFromLookup(fallbackLookup, shipId);
 }
 
 export function getShipType(shipId: number) {
-  const typeId = masterByShipId.get(shipId)?.api_stype ?? 0;
-  return shipTypeLabels[typeId] ?? `Type ${typeId || "?"}`;
+  return getShipTypeFromLookup(fallbackLookup, shipId);
 }
 
 /** Extract the max/base stat from a ship master field (number or [min, max] tuple) */

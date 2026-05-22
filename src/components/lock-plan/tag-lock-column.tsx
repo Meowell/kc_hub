@@ -15,6 +15,8 @@ type TagLockColumnProps = {
   assignedData: string;
   ships: ShipStock[];
   userId: string;
+  getShipName: (shipId: number) => string;
+  getShipType: (shipId: number) => string;
   onCellClick: (tagId: string, rowIndex: number) => void;
   onRemoveShip: (tagId: string, uniqueId: string) => void;
   onReorder?: (tagId: string, newAssignments: (LockAssignment | null)[]) => void;
@@ -51,6 +53,7 @@ function saveSlotCount(tagId: string, count: number) {
 
 export function TagLockColumn({
   tagId, tagName, tagColorClass, assignedData, ships, userId,
+  getShipName, getShipType,
   onCellClick, onRemoveShip, onReorder, onDropShip,
 }: TagLockColumnProps) {
   const assignments = useMemo(() => parseAssignments(assignedData), [assignedData]);
@@ -264,6 +267,8 @@ export function TagLockColumn({
   assignment={assignment}
   ship={assignment ? shipByUniqueId.get(assignment.uniqueId) : null}
   tagColorClass={tagColorClass}
+  getShipName={getShipName}
+  getShipType={getShipType}
   onClick={() => onCellClick(tagId, globalIndex)}
   onRemove={() => { if (assignment) onRemoveShip(tagId, assignment.uniqueId); }}
   onDragStart={assignment ? ((e) => handleDragStart(e, assignment)) : undefined}
