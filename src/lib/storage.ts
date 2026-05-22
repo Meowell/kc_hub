@@ -31,8 +31,17 @@ export async function saveUploadedImage(file: File) {
   return `/uploads/${fileName}`;
 }
 
+export function isUploadedFileUrl(url: string) {
+  return /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(url);
+}
+
 export async function deleteUploadedFile(url: string) {
-  if (!url || !url.startsWith("/uploads/")) return;
+  if (!isUploadedFileUrl(url)) return;
   const dir = process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
-  try { await unlink(path.join(dir, url.replace("/uploads/", ""))); } catch { /* ignore */ }
+  const baseDir = path.resolve(dir);
+  const fullPath = path.resolve(baseDir, url.replace("/uploads/", ""));
+
+  if (!fullPath.startsWith(`${baseDir}${path.sep}`)) return;
+
+  try { await unlink(fullPath); } catch { /* ignore */ }
 }

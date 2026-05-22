@@ -2,6 +2,7 @@ import { jwtVerify, SignJWT } from "jose";
 
 export const SESSION_COOKIE = "kancolle_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+export const SESSION_COOKIE_SECURE = process.env.NODE_ENV === "production";
 
 export type SessionPayload = {
   userId: string;

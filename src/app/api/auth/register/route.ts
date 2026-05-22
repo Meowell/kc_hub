@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
+import { createSessionToken, SESSION_COOKIE, SESSION_COOKIE_SECURE, SESSION_MAX_AGE } from "@/lib/session";
 import { registerSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: SESSION_COOKIE_SECURE,
     maxAge: SESSION_MAX_AGE,
     path: "/",
   });

@@ -54,6 +54,19 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     return map;
   });
 
+  const [planIdsByUser, setPlanIdsByUser] = useState<
+    Record<string, Record<string, string>>
+  >(() => {
+    const map: Record<string, Record<string, string>> = {};
+    for (const u of initialUsers) {
+      map[u.userId] = {};
+      for (const p of u.plans) {
+        map[u.userId][p.tagId] = p.planId;
+      }
+    }
+    return map;
+  });
+
   // ---- Ship stocks per user (parsed from shipData, immutable after init) ----
   const [shipsByUser, setShipsByUser] = useState<Record<string, ShipStock[]>>(() => {
     const map: Record<string, ShipStock[]> = {};
@@ -119,16 +132,13 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
   // ==========================================================
   const savePlan = useCallback(
     async (userId: string, tagId: string, assignedData: string) => {
-      // Find existing plan for this user+tag
-      const planEntry = initialUsers
-        .find((u) => u.userId === userId)
-        ?.plans.find((p) => p.tagId === tagId);
+      const planId = planIdsByUser[userId]?.[tagId];
 
       const response = await fetch("/api/lock-plan", {
-        method: planEntry?.planId ? "PATCH" : "POST",
+        method: planId ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          id: planEntry?.planId,
+          id: planId,
           tagId,
           assignedData,
           note: null,
@@ -140,9 +150,18 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
         throw new Error(data.error ?? "保存失败");
       }
 
+      if (data.plan?.id) {
+        setPlanIdsByUser((prev) => {
+          const next = structuredClone(prev);
+          if (!next[userId]) next[userId] = {};
+          next[userId][tagId] = data.plan.id;
+          return next;
+        });
+      }
+
       return data;
     },
-    [initialUsers],
+    [planIdsByUser],
   );
 
   // ==========================================================

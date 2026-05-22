@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth";
+import { isUploadedFileUrl } from "@/lib/storage";
 
 export async function PATCH(request: Request) {
   const user = await requireApiUser();
@@ -9,6 +10,10 @@ export async function PATCH(request: Request) {
 
   if (avatarUrl !== undefined && avatarUrl !== null && typeof avatarUrl !== "string") {
     return NextResponse.json({ error: "avatarUrl 必须是字符串" }, { status: 400 });
+  }
+
+  if (avatarUrl && !isUploadedFileUrl(avatarUrl)) {
+    return NextResponse.json({ error: "头像地址必须来自本地上传" }, { status: 400 });
   }
 
   const updated = await prisma.user.update({

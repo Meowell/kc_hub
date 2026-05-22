@@ -296,7 +296,7 @@ export function StrategyEditor({ posts, currentUserId, routineCards }: { posts: 
                           {post.user.avatarUrl ? <img src={post.user.avatarUrl} alt={post.user.name} className="w-5 h-5 rounded-full object-cover" /> : null}
                           <h3 className="text-lg font-semibold text-white">{post.title}</h3>
                         </div>
-                        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all">
                           <span className="text-xs text-slate-500">{post.user.name} · {new Date(post.createdAt).toLocaleDateString("zh-CN")}</span>
                           {isOwner && (
                             <>

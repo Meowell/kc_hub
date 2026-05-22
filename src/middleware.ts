@@ -13,16 +13,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/strategy") ||
     request.nextUrl.pathname.startsWith("/lock-plan");
 
-  console.log("[mw]", request.method, request.nextUrl.pathname,
-    "hasToken:", !!token,
-    "hasSession:", !!session,
-    "rsc:", request.nextUrl.searchParams.has("_rsc"),
-    "prefetch:", request.headers.get("next-router-prefetch"),
-    "x-fwd-proto:", request.headers.get("x-forwarded-proto"),
-  );
-
   if (isProtected && !session) {
-    console.log("[mw] REDIRECT to /login from", request.nextUrl.pathname);
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

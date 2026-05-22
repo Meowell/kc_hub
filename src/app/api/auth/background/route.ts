@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/auth";
-import { deleteUploadedFile } from "@/lib/storage";
+import { deleteUploadedFile, isUploadedFileUrl } from "@/lib/storage";
 
 export async function PATCH(request: Request) {
   const user = await requireApiUser();
@@ -10,6 +10,10 @@ export async function PATCH(request: Request) {
 
   if (backgroundUrl !== undefined && backgroundUrl !== null && typeof backgroundUrl !== "string") {
     return NextResponse.json({ error: "backgroundUrl 必须是字符串" }, { status: 400 });
+  }
+
+  if (backgroundUrl && !isUploadedFileUrl(backgroundUrl)) {
+    return NextResponse.json({ error: "背景地址必须来自本地上传" }, { status: 400 });
   }
 
   // 删旧背景文件

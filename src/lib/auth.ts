@@ -8,8 +8,6 @@ export async function getCurrentUser() {
   const token = cookies().get(SESSION_COOKIE)?.value;
   const session = await verifySessionToken(token);
 
-  console.log("[auth] getCurrentUser:", "hasCookie:", !!token, "hasSession:", !!session);
-
   if (!session) {
     return null;
   }
