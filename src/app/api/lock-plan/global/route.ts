@@ -17,7 +17,7 @@ export async function GET() {
       orderBy: { name: "asc" },
     }),
     prisma.lockPlan.findMany({
-      select: { id: true, userId: true, tagId: true, assignedData: true, note: true },
+      select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true },
     }),
   ]);
 
@@ -49,6 +49,7 @@ export async function GET() {
         tagId: p.tagId,
         assignedData: p.assignedData,
         note: p.note,
+        updatedAt: p.updatedAt.toISOString(),
       })),
     })),
   };

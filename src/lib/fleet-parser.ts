@@ -1,4 +1,4 @@
-import { createMasterLookup, fallbackMasterData, type MasterData } from "@/lib/master-data";
+import { createMasterLookup, emptyMasterData, type MasterData } from "@/lib/master-data";
 
 /* ── Lookup maps ── */
 
@@ -76,7 +76,7 @@ type BRFleet = {
 
 /* ── Parser ── */
 
-export function createFleetParser(masterData: MasterData = fallbackMasterData) {
+export function createFleetParser(masterData: MasterData = emptyMasterData) {
   const lookup = createMasterLookup(masterData);
   const {
     shipNameById,

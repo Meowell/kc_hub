@@ -1,6 +1,3 @@
-import start2Fallback from "@/data/START2.json";
-import shipHpFallback from "@/data/shipHp.json";
-
 export type ShipMaster = {
   api_id: number;
   api_name: string;
@@ -54,9 +51,14 @@ export type MasterData = {
 
 export type MasterLookup = ReturnType<typeof createMasterLookup>;
 
-export const fallbackMasterData: MasterData = {
-  start2: start2Fallback as Start2Data,
-  shipHp: shipHpFallback as ShipHpEntry[],
+export const emptyMasterData: MasterData = {
+  start2: {
+    api_mst_ship: [],
+    api_mst_slotitem: [],
+    api_mst_stype: [],
+    api_mst_slotitem_equiptype: [],
+  },
+  shipHp: [],
   source: "fallback",
   runtimeFiles: {
     start2: false,
@@ -94,7 +96,7 @@ function getRemodelRoot(shipId: number, remodelFrom: Map<number, number>): numbe
   return cur;
 }
 
-export function createMasterLookup(masterData: MasterData = fallbackMasterData) {
+export function createMasterLookup(masterData: MasterData = emptyMasterData) {
   const allShips = masterData.start2.api_mst_ship ?? [];
   const shipNameById = new Map(allShips.map((ship) => [ship.api_id, ship.api_name]));
   const shipBaseById = new Map(allShips.map((ship) => [ship.api_id, ship]));

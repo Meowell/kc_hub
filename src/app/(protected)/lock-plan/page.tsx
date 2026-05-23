@@ -15,7 +15,7 @@ export default async function LockPlanGlobalPage() {
       orderBy: { name: "asc" },
     }),
     prisma.lockPlan.findMany({
-      select: { id: true, userId: true, tagId: true, assignedData: true, note: true },
+      select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true },
     }),
   ]);
 
@@ -45,6 +45,7 @@ export default async function LockPlanGlobalPage() {
         tagId: p.tagId,
         assignedData: p.assignedData,
         note: p.note,
+        updatedAt: p.updatedAt.toISOString(),
       })),
     }));
 

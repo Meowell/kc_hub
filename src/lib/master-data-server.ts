@@ -1,8 +1,8 @@
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import path from "path";
 
+import { fallbackMasterData } from "@/lib/master-data-fallback";
 import {
-  fallbackMasterData,
   type MasterData,
   type ShipHpEntry,
   type Start2Data,

@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 
 import { MASTER_DATA_UPDATED_EVENT } from "@/lib/master-data-events";
-import { fallbackMasterData, type MasterData } from "@/lib/master-data";
+import { emptyMasterData, type MasterData } from "@/lib/master-data";
 
 let cachedMasterData: MasterData | null = null;
 let pendingMasterData: Promise<MasterData> | null = null;
 
-async function fetchMasterData() {
-  const response = await fetch("/api/master-data", { cache: "no-store" });
+async function fetchMasterData(force = false) {
+  const url = force ? `/api/master-data?ts=${Date.now()}` : "/api/master-data";
+  const response = await fetch(url, { cache: force ? "no-store" : "default" });
   if (!response.ok) {
     throw new Error(`master data request failed: ${response.status}`);
   }
@@ -23,7 +24,7 @@ function loadMasterData(force = false) {
   if (!force && pendingMasterData) {
     return pendingMasterData;
   }
-  pendingMasterData = fetchMasterData()
+  pendingMasterData = fetchMasterData(force)
     .then((data) => {
       cachedMasterData = data;
       return data;
@@ -35,7 +36,7 @@ function loadMasterData(force = false) {
 }
 
 export function useMasterData() {
-  const [masterData, setMasterData] = useState<MasterData>(cachedMasterData ?? fallbackMasterData);
+  const [masterData, setMasterData] = useState<MasterData>(cachedMasterData ?? emptyMasterData);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {

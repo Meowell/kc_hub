@@ -82,9 +82,15 @@ export const lockTagSchema = z.object({
 
 export const lockPlanSchema = z.object({
   id: z.string().optional(),
+  userId: z.string().optional(),
   tagId: z.string().min(1),
   assignedData: z.string().min(2).max(2 * 1024 * 1024),
   note: z.string().max(2000).optional().nullable(),
+  updatedAt: z.string().datetime().optional(),
+});
+
+export const lockPlanBatchSchema = z.object({
+  plans: z.array(lockPlanSchema).min(1).max(2),
 });
 
 export function assertJsonString(value: string) {

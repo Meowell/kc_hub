@@ -6,6 +6,15 @@ import { ConflictAlertDialog } from "@/components/lock-plan/conflict-alert-dialo
 import { ShipPickerModal, type ShipLockInfo } from "@/components/lock-plan/ship-picker-modal";
 import { TagManager } from "@/components/lock-plan/tag-manager";
 import { UserLockRow } from "@/components/lock-plan/user-lock-row";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { parseAssignments, type LockAssignment } from "@/lib/lock-plan-helpers";
 import { createMasterLookup, getShipNameFromLookup, getShipTypeFromLookup } from "@/lib/master-data";
@@ -17,10 +26,26 @@ import { useMasterData } from "@/lib/use-master-data";
 // ============================================================
 
 type TagDTO = { id: string; name: string; colorClass: string; sortOrder: number; isActive: boolean };
-type PlanDTO = { planId: string; tagId: string; assignedData: string; note: string | null };
+type PlanDTO = { planId: string; tagId: string; assignedData: string; note: string | null; updatedAt: string };
 type UserDTO = { userId: string; userName: string; avatarUrl: string | null; hasShipData: boolean; plans: PlanDTO[] };
 
 type GlobalData = { tags: TagDTO[]; users: UserDTO[] };
+type SavedPlanDTO = {
+  id: string;
+  userId: string;
+  tagId: string;
+  assignedData: string;
+  note: string | null;
+  updatedAt: string;
+};
+type PlanMutation = {
+  userId: string;
+  tagId: string;
+  assignedData: string;
+  note?: string | null;
+};
+
+class PlanSaveConflictError extends Error {}
 
 // ============================================================
 // Props
@@ -84,6 +109,19 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     return map;
   });
 
+  const [planVersionsByUser, setPlanVersionsByUser] = useState<
+    Record<string, Record<string, string>>
+  >(() => {
+    const map: Record<string, Record<string, string>> = {};
+    for (const u of initialUsers) {
+      map[u.userId] = {};
+      for (const p of u.plans) {
+        map[u.userId][p.tagId] = p.updatedAt;
+      }
+    }
+    return map;
+  });
+
   // ---- Ship stocks per user (parsed from shipData and current runtime master data) ----
   const shipsByUser = useMemo<Record<string, ShipStock[]>>(() => {
     const map: Record<string, ShipStock[]> = {};
@@ -121,6 +159,7 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
 
   // ---- Error / saving ----
   const [error, setError] = useState("");
+  const [planConflictMessage, setPlanConflictMessage] = useState("");
 
   // ==========================================================
   // Derived: build shipLockMap for each user
@@ -144,41 +183,63 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     return map;
   }
 
+  const applySavedPlanVersions = useCallback((savedPlans: SavedPlanDTO[]) => {
+    if (savedPlans.length === 0) return;
+    setPlanIdsByUser((prev) => {
+      const next = structuredClone(prev);
+      for (const plan of savedPlans) {
+        if (!next[plan.userId]) next[plan.userId] = {};
+        next[plan.userId][plan.tagId] = plan.id;
+      }
+      return next;
+    });
+    setPlanVersionsByUser((prev) => {
+      const next = structuredClone(prev);
+      for (const plan of savedPlans) {
+        if (!next[plan.userId]) next[plan.userId] = {};
+        next[plan.userId][plan.tagId] = plan.updatedAt;
+      }
+      return next;
+    });
+  }, []);
+
   // ==========================================================
-  // Save a single plan (POST or PATCH) with assignedData
+  // Save one or two plans with optimistic-concurrency versions
   // ==========================================================
-  const savePlan = useCallback(
-    async (userId: string, tagId: string, assignedData: string) => {
-      const planId = planIdsByUser[userId]?.[tagId];
+  const savePlans = useCallback(
+    async (mutations: PlanMutation[]) => {
+      const payloadPlans = mutations.map((mutation) => {
+        const id = planIdsByUser[mutation.userId]?.[mutation.tagId];
+        return {
+          id,
+          userId: mutation.userId,
+          tagId: mutation.tagId,
+          assignedData: mutation.assignedData,
+          note: mutation.note ?? null,
+          updatedAt: planVersionsByUser[mutation.userId]?.[mutation.tagId],
+        };
+      });
+      const single = payloadPlans.length === 1 ? payloadPlans[0] : null;
 
       const response = await fetch("/api/lock-plan", {
-        method: planId ? "PATCH" : "POST",
+        method: single ? (single.id ? "PATCH" : "POST") : "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: planId,
-          tagId,
-          assignedData,
-          note: null,
-        }),
+        body: JSON.stringify(single ?? { plans: payloadPlans }),
       });
 
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 409) {
+          throw new PlanSaveConflictError(data.error ?? "该锁船规划刚被其他人修改，请刷新页面后再编辑");
+        }
         throw new Error(data.error ?? "保存失败");
       }
 
-      if (data.plan?.id) {
-        setPlanIdsByUser((prev) => {
-          const next = structuredClone(prev);
-          if (!next[userId]) next[userId] = {};
-          next[userId][tagId] = data.plan.id;
-          return next;
-        });
-      }
-
+      const savedPlans: SavedPlanDTO[] = data.plans ?? (data.plan ? [data.plan] : []);
+      applySavedPlanVersions(savedPlans);
       return data;
     },
-    [planIdsByUser],
+    [applySavedPlanVersions, planIdsByUser, planVersionsByUser],
   );
 
   // ==========================================================
@@ -249,9 +310,13 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
 
     try {
       if (sourceTagId && newSource) {
-        await savePlan(userId, sourceTagId, JSON.stringify(newSource));
+        await savePlans([
+          { userId, tagId: sourceTagId, assignedData: JSON.stringify(newSource) },
+          { userId, tagId, assignedData: JSON.stringify(newTarget) },
+        ]);
+      } else {
+        await savePlans([{ userId, tagId, assignedData: JSON.stringify(newTarget) }]);
       }
-      await savePlan(userId, tagId, JSON.stringify(newTarget));
     } catch (e) {
       // Rollback
       setPlansByUser((prev) => {
@@ -263,7 +328,11 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
         }
         return next;
       });
-      setError(e instanceof Error ? e.message : "保存失败");
+      if (e instanceof PlanSaveConflictError) {
+        setPlanConflictMessage(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "保存失败");
+      }
     }
   }
 
@@ -333,7 +402,7 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     });
 
     try {
-      await savePlan(userId, tagId, newData);
+      await savePlans([{ userId, tagId, assignedData: newData }]);
     } catch (e) {
       // Rollback
       setPlansByUser((prev) => {
@@ -342,7 +411,11 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
         next[userId][tagId] = data;
         return next;
       });
-      setError(e instanceof Error ? e.message : "移除失败");
+      if (e instanceof PlanSaveConflictError) {
+        setPlanConflictMessage(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "移除失败");
+      }
     }
   }
 
@@ -364,7 +437,7 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     });
 
     try {
-      await savePlan(userId, tagId, newData);
+      await savePlans([{ userId, tagId, assignedData: newData }]);
     } catch (e) {
       // Rollback
       setPlansByUser((prev) => {
@@ -373,7 +446,11 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
         next[userId][tagId] = oldData;
         return next;
       });
-      setError(e instanceof Error ? e.message : "排序保存失败");
+      if (e instanceof PlanSaveConflictError) {
+        setPlanConflictMessage(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "排序保存失败");
+      }
     }
   }
 
@@ -424,8 +501,10 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     });
 
     try {
-      await savePlan(userId, sourceTagId, JSON.stringify(newSource));
-      await savePlan(userId, targetTagId, JSON.stringify(targetAssignments));
+      await savePlans([
+        { userId, tagId: sourceTagId, assignedData: JSON.stringify(newSource) },
+        { userId, tagId: targetTagId, assignedData: JSON.stringify(targetAssignments) },
+      ]);
     } catch (e) {
       // Rollback
       setPlansByUser((prev) => {
@@ -435,7 +514,11 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
         next[userId][sourceTagId] = sourceData;
         return next;
       });
-      setError(e instanceof Error ? e.message : "移动保存失败");
+      if (e instanceof PlanSaveConflictError) {
+        setPlanConflictMessage(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "移动保存失败");
+      }
     }
   }
 
@@ -549,6 +632,7 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
                 tagId: tag.id,
                 assignedData: userPlansState[tag.id],
                 note: originalPlan?.note ?? null,
+                updatedAt: originalPlan?.updatedAt ?? "",
               };
             });
 
@@ -594,6 +678,28 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
         getShipTypeId={getShipTypeId}
         onSelectShip={handleSelectShip}
       />
+
+      <AlertDialog
+        open={!!planConflictMessage}
+        onOpenChange={(open) => {
+          if (!open) setPlanConflictMessage("");
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>锁船计划已被更新</AlertDialogTitle>
+          <AlertDialogDescription>
+            {planConflictMessage || "该锁船规划刚被其他人修改，请刷新页面后再编辑。"}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setPlanConflictMessage("")}>
+            稍后刷新
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={() => window.location.reload()}>
+            刷新页面
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
 
       {/* Conflict Alert Dialog */}
       <ConflictAlertDialog

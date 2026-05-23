@@ -6,7 +6,7 @@ import { TagLockColumn } from "@/components/lock-plan/tag-lock-column";
 import { Badge } from "@/components/ui/badge";
 
 type TagInfo = { id: string; name: string; colorClass: string };
-type PlanInfo = { planId: string; tagId: string; assignedData: string; note: string | null };
+type PlanInfo = { planId: string; tagId: string; assignedData: string; note: string | null; updatedAt?: string };
 
 type UserLockRowProps = {
   userId: string;

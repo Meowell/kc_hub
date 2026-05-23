@@ -13,7 +13,7 @@ export async function GET() {
   const data = await loadMasterData();
   return NextResponse.json(data, {
     headers: {
-      "cache-control": "no-store",
+      "cache-control": "private, max-age=3600, stale-while-revalidate=86400",
     },
   });
 }
