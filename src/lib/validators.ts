@@ -17,8 +17,19 @@ export const shipDataSchema = z.object({
   shipData: z.string().min(2).max(8 * 1024 * 1024),
 });
 
+export const activityIdSchema = z.string().trim().min(1).max(80);
+
+export const activitySchema = z.object({
+  id: activityIdSchema.optional(),
+  name: z.string().trim().min(1).max(80),
+  description: z.string().max(500).optional().nullable(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
 export const routineRecordSchema = z.object({
   id: z.string().optional(),
+  activityId: activityIdSchema.optional().nullable(),
   seaArea: z.string().min(1).max(50),
   missionName: z.string().min(1).max(100),
   airControl: z.coerce.number().int().min(0).max(9999).optional().default(0),
@@ -29,6 +40,7 @@ export const routineRecordSchema = z.object({
 
 export const strategyPostSchema = z.object({
   id: z.string().optional(),
+  activityId: activityIdSchema.optional().nullable(),
   phaseName: z.string().min(1).max(80),
   title: z.string().min(1).max(120),
   content: z.string().min(1).max(20000),
@@ -75,6 +87,7 @@ export function assertLockAssignmentsString(value: string) {
 
 export const lockTagSchema = z.object({
   id: z.string().optional(),
+  activityId: activityIdSchema.optional().nullable(),
   name: z.string().min(1).max(50),
   colorClass: z.enum(tagColorClasses),
   sortOrder: z.coerce.number().int().min(0).optional(),

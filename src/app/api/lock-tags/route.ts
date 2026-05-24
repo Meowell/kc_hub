@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 
+import { DAILY_ACTIVITY_ID, normalizeActivityId } from "@/lib/activity-scope";
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { lockTagSchema } from "@/lib/validators";
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
+  const { searchParams } = new URL(request.url);
+  const activityId = normalizeActivityId(searchParams.get("activityId"));
   const tags = await prisma.lockTag.findMany({
-    where: { isActive: true },
+    where: { activityId, isActive: true },
     orderBy: { sortOrder: "asc" },
   });
   return NextResponse.json({ tags });
@@ -24,13 +27,18 @@ export async function POST(request: Request) {
   }
 
   const { name, colorClass, sortOrder } = parsed.data;
+  const activityId = normalizeActivityId(parsed.data.activityId);
+  const scopeKey = activityId ?? DAILY_ACTIVITY_ID;
 
   // Get max sortOrder for new tag
-  const maxOrder = await prisma.lockTag.aggregate({ _max: { sortOrder: true } });
+  const maxOrder = await prisma.lockTag.aggregate({
+    where: { activityId },
+    _max: { sortOrder: true },
+  });
   const nextOrder = sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1;
 
   const tag = await prisma.lockTag.create({
-    data: { name, colorClass, sortOrder: nextOrder },
+    data: { name, colorClass, sortOrder: nextOrder, activityId, scopeKey },
   });
 
   return NextResponse.json({ tag });
@@ -46,10 +54,18 @@ export async function PATCH(request: Request) {
   }
 
   const { id, name, colorClass, sortOrder } = parsed.data;
+  const activityId = parsed.data.activityId === undefined
+    ? undefined
+    : normalizeActivityId(parsed.data.activityId);
 
   const tag = await prisma.lockTag.update({
     where: { id },
-    data: { name, colorClass, ...(sortOrder !== undefined ? { sortOrder } : {}) },
+    data: {
+      name,
+      colorClass,
+      ...(sortOrder !== undefined ? { sortOrder } : {}),
+      ...(activityId !== undefined ? { activityId, scopeKey: activityId ?? DAILY_ACTIVITY_ID } : {}),
+    },
   });
 
   return NextResponse.json({ tag });

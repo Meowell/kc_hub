@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 
+import { normalizeActivityId } from "@/lib/activity-scope";
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { strategyPostSchema } from "@/lib/validators";
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
+  const { searchParams } = new URL(request.url);
+  const activityId = normalizeActivityId(searchParams.get("activityId"));
 
   const posts = await prisma.strategyPost.findMany({
+    where: { activityId },
     orderBy: [{ phaseName: "asc" }, { createdAt: "desc" }],
     include: { user: { select: { id: true, name: true, avatarUrl: true } } },
   });
@@ -28,6 +32,7 @@ export async function POST(request: Request) {
   const post = await prisma.strategyPost.create({
     data: {
       userId: user.id,
+      activityId: normalizeActivityId(parsed.data.activityId),
       phaseName: parsed.data.phaseName,
       title: parsed.data.title,
       content: parsed.data.content,
@@ -57,6 +62,7 @@ export async function PATCH(request: Request) {
     where: { id: parsed.data.id },
     data: {
       phaseName: parsed.data.phaseName,
+      activityId: normalizeActivityId(parsed.data.activityId),
       title: parsed.data.title,
       content: parsed.data.content,
       fleetImageUrl: parsed.data.fleetImageUrl || null,

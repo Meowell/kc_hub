@@ -1,5 +1,7 @@
+import { ActivitySwitcher } from "@/components/common/activity-switcher";
 import { RoutineRecords } from "@/components/routine/routine-form";
 import { RoutineFilter } from "@/components/routine/routine-filter";
+import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -9,9 +11,13 @@ const PAGE_SIZE = 10;
 export default async function RoutinePage({
   searchParams,
 }: {
-  searchParams: { page?: string; search?: string; seaArea?: string; uploaderId?: string };
+  searchParams: { page?: string; search?: string; seaArea?: string; uploaderId?: string; activityId?: string };
 }) {
   const user = await requireCurrentUser();
+  const [activities, scope] = await Promise.all([
+    getActiveActivities(),
+    resolveActivityScope(searchParams.activityId),
+  ]);
 
   const currentPage = Math.max(1, parseInt(searchParams.page || "1", 10) || 1);
   const search = searchParams.search?.trim() || undefined;
@@ -19,7 +25,7 @@ export default async function RoutinePage({
   const uploaderId = searchParams.uploaderId || undefined;
 
   // Build dynamic where clause
-  const conditions: Prisma.RoutineRecordWhereInput[] = [];
+  const conditions: Prisma.RoutineRecordWhereInput[] = [{ activityId: scope.activityId }];
   if (search) {
     conditions.push({
       OR: [
@@ -45,8 +51,8 @@ export default async function RoutinePage({
       take: PAGE_SIZE,
       include: { user: { select: { id: true, name: true, avatarUrl: true } } },
     }),
-    prisma.routineRecord.groupBy({ by: ["seaArea"], orderBy: { seaArea: "asc" } }),
-    prisma.routineRecord.groupBy({ by: ["userId"], orderBy: { userId: "asc" } }),
+    prisma.routineRecord.groupBy({ by: ["seaArea"], where: { activityId: scope.activityId }, orderBy: { seaArea: "asc" } }),
+    prisma.routineRecord.groupBy({ by: ["userId"], where: { activityId: scope.activityId }, orderBy: { userId: "asc" } }),
   ]);
 
   // Resolve uploader names
@@ -78,11 +84,12 @@ export default async function RoutinePage({
 
   return (
     <div className="space-y-6">
+      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">📋 周回阵容记录</h1>
+          <h1 className="text-2xl font-bold text-white">📋 {scope.label}作业卡</h1>
           <p className="mt-1.5 text-sm text-slate-400">
-            分享周回阵容并存档
+            {scope.isDaily ? "日常周回阵容与配置存档" : "本期活动独立作业卡与配置存档"}
           </p>
         </div>
         <RoutineFilter
@@ -91,6 +98,7 @@ export default async function RoutinePage({
           currentSearch={search ?? ""}
           currentSeaArea={seaArea ?? ""}
           currentUploaderId={uploaderId ?? ""}
+          currentActivityId={scope.activityId}
         />
       </div>
       <RoutineRecords
@@ -102,6 +110,7 @@ export default async function RoutinePage({
         search={search ?? ""}
         seaArea={seaArea ?? ""}
         uploaderId={uploaderId ?? ""}
+        activityId={scope.activityId}
         shipData={user.shipData}
         currentUserId={user.id}
       />

@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 
+import { normalizeActivityId } from "@/lib/activity-scope";
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
+  const { searchParams } = new URL(request.url);
+  const activityId = normalizeActivityId(searchParams.get("activityId"));
 
   const [tags, users, allPlans] = await Promise.all([
     prisma.lockTag.findMany({
-      where: { isActive: true },
+      where: { activityId, isActive: true },
       orderBy: { sortOrder: "asc" },
     }),
     prisma.user.findMany({
@@ -17,6 +20,7 @@ export async function GET() {
       orderBy: { name: "asc" },
     }),
     prisma.lockPlan.findMany({
+      where: { tag: { activityId } },
       select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true },
     }),
   ]);

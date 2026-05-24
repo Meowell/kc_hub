@@ -82,8 +82,26 @@ interface RoutineRecordsProps {
   search: string;
   seaArea: string;
   uploaderId: string;
+  activityId: string | null;
   shipData: string | null;
   currentUserId: string;
+}
+
+function routinePath(params: {
+  page?: number;
+  search?: string;
+  seaArea?: string;
+  uploaderId?: string;
+  activityId?: string | null;
+}) {
+  const query = new URLSearchParams();
+  if (params.activityId) query.set("activityId", params.activityId);
+  if (params.page && params.page > 1) query.set("page", String(params.page));
+  if (params.search) query.set("search", params.search);
+  if (params.seaArea) query.set("seaArea", params.seaArea);
+  if (params.uploaderId) query.set("uploaderId", params.uploaderId);
+  const qs = query.toString();
+  return qs ? `/routine?${qs}` : "/routine";
 }
 
 function renderPageNumbers(
@@ -138,6 +156,7 @@ export function RoutineRecords({
   search,
   seaArea,
   uploaderId,
+  activityId,
   shipData,
   currentUserId,
 }: RoutineRecordsProps) {
@@ -160,8 +179,8 @@ export function RoutineRecords({
     setErr("");
     const isUpdate = !!editingRecordId;
     const body = editingRecordId
-      ? { id: editingRecordId, ...f, fleetData: fleetDataJson }
-      : { ...f, fleetData: fleetDataJson };
+      ? { id: editingRecordId, ...f, activityId, fleetData: fleetDataJson }
+      : { ...f, activityId, fleetData: fleetDataJson };
     const res = await fetch("/api/routine", {
       method: isUpdate ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
@@ -185,13 +204,7 @@ export function RoutineRecords({
 
   function goToPage(page: number) {
     if (page < 1 || page > totalPages) return;
-    const params = new URLSearchParams();
-    if (page > 1) params.set("page", String(page));
-    if (search) params.set("search", search);
-    if (seaArea) params.set("seaArea", seaArea);
-    if (uploaderId) params.set("uploaderId", uploaderId);
-    const qs = params.toString();
-    router.push(qs ? `/routine?${qs}` : "/routine");
+    router.push(routinePath({ page, search, seaArea, uploaderId, activityId }));
   }
 
   return (
@@ -264,7 +277,16 @@ export function RoutineRecords({
                 fetch("/api/routine", {
                   method: "PATCH",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ id: viewingRecord.id, fleetData: json }),
+                  body: JSON.stringify({
+                    id: viewingRecord.id,
+                    activityId,
+                    seaArea: viewingRecord.seaArea,
+                    missionName: viewingRecord.missionName,
+                    airControl: viewingRecord.airControl,
+                    note: viewingRecord.note,
+                    imageUrl: viewingRecord.imageUrl,
+                    fleetData: json,
+                  }),
                 }).catch(() => {});
               }
             }}

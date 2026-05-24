@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 
@@ -10,6 +10,7 @@ interface RoutineFilterProps {
   currentSearch: string;
   currentSeaArea: string;
   currentUploaderId: string;
+  currentActivityId: string | null;
 }
 
 export function RoutineFilter({
@@ -18,9 +19,9 @@ export function RoutineFilter({
   currentSearch,
   currentSeaArea,
   currentUploaderId,
+  currentActivityId,
 }: RoutineFilterProps) {
   const router = useRouter();
-  const rawParams = useSearchParams();
   const [search, setSearch] = useState(currentSearch);
 
   // Sync search state when URL changes externally (e.g. browser back/forward)
@@ -30,20 +31,20 @@ export function RoutineFilter({
 
   const apply = useCallback(
     (overrides: { search?: string; seaArea?: string; uploaderId?: string }) => {
-      const params = new URLSearchParams(rawParams.toString());
       const s = overrides.search !== undefined ? overrides.search : search;
       const sa = overrides.seaArea !== undefined ? overrides.seaArea : currentSeaArea;
       const uid = overrides.uploaderId !== undefined ? overrides.uploaderId : currentUploaderId;
 
       // Rebuild params from scratch for cleanliness
       const next = new URLSearchParams();
+      if (currentActivityId) next.set("activityId", currentActivityId);
       if (s) next.set("search", s);
       if (sa) next.set("seaArea", sa);
       if (uid) next.set("uploaderId", uid);
       const qs = next.toString();
       router.push(qs ? `/routine?${qs}` : "/routine");
     },
-    [router, rawParams, search, currentSeaArea, currentUploaderId],
+    [router, search, currentSeaArea, currentUploaderId, currentActivityId],
   );
 
   function handleSearchSubmit(e: React.FormEvent) {
@@ -61,7 +62,7 @@ export function RoutineFilter({
 
   function handleClear() {
     setSearch("");
-    router.push("/routine");
+    router.push(currentActivityId ? `/routine?activityId=${encodeURIComponent(currentActivityId)}` : "/routine");
   }
 
   const hasFilter = currentSearch || currentSeaArea || currentUploaderId;

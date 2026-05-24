@@ -1,16 +1,28 @@
+import { ActivitySwitcher } from "@/components/common/activity-switcher";
 import { StrategyEditor } from "@/components/strategy/strategy-editor";
+import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export default async function StrategyPage() {
+export default async function StrategyPage({
+  searchParams,
+}: {
+  searchParams: { activityId?: string };
+}) {
   const user = await requireCurrentUser();
+  const [activities, scope] = await Promise.all([
+    getActiveActivities(),
+    resolveActivityScope(searchParams.activityId),
+  ]);
 
   const [posts, routineRecords] = await Promise.all([
     prisma.strategyPost.findMany({
+      where: { activityId: scope.activityId },
       orderBy: [{ phaseName: "asc" }, { createdAt: "desc" }],
       include: { user: { select: { id: true, name: true, avatarUrl: true } } },
     }),
     prisma.routineRecord.findMany({
+      where: { activityId: scope.activityId },
       orderBy: { createdAt: "desc" },
       take: 50,
       include: { user: { select: { id: true, name: true } } },
@@ -43,13 +55,19 @@ export default async function StrategyPage() {
 
   return (
     <div className="space-y-6">
+      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
       <div>
-        <h1 className="text-2xl font-bold text-white">📝 活动攻略贴</h1>
+        <h1 className="text-2xl font-bold text-white">📝 {scope.label}攻略贴</h1>
         <p className="mt-1.5 text-sm text-slate-400">
-          全员共享的阶段攻略 — 打法、路线、配装思路与截图。
+          {scope.isDaily ? "日常打法、路线、配装思路与截图。" : "本期活动独立攻略、路线、配装思路与截图。"}
         </p>
       </div>
-      <StrategyEditor posts={serializablePosts} currentUserId={user.id} routineCards={serializableCards} />
+      <StrategyEditor
+        posts={serializablePosts}
+        currentUserId={user.id}
+        routineCards={serializableCards}
+        activityId={scope.activityId}
+      />
     </div>
   );
 }

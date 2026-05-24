@@ -149,7 +149,17 @@ function renderMarkdown(
 
 /* ── Main component ── */
 
-export function StrategyEditor({ posts, currentUserId, routineCards }: { posts: Post[]; currentUserId: string; routineCards: RoutineFull[] }) {
+export function StrategyEditor({
+  posts,
+  currentUserId,
+  routineCards,
+  activityId,
+}: {
+  posts: Post[];
+  currentUserId: string;
+  routineCards: RoutineFull[];
+  activityId: string | null;
+}) {
   const router = useRouter();
   const { masterData } = useMasterData();
   const shipNameById = useMemo(
@@ -202,7 +212,7 @@ export function StrategyEditor({ posts, currentUserId, routineCards }: { posts: 
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr("");
     const method = editingId ? "PATCH" : "POST";
-    const body = JSON.stringify({ ...f, id: editingId || undefined, fleetImageUrl: null, airbaseImageUrl: null, routineCardIds: null });
+    const body = JSON.stringify({ ...f, id: editingId || undefined, activityId, fleetImageUrl: null, airbaseImageUrl: null, routineCardIds: null });
     const res = await fetch("/api/strategy", { method, headers: { "content-type": "application/json" }, body });
     const d = await res.json();
     if (!res.ok) { setErr(d.error ?? "发布失败"); return; }

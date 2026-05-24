@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const navItems = [
   { href: "/home", label: "主页", icon: "🏠" },
@@ -17,6 +17,14 @@ function cx(...classes: (string | boolean | undefined)[]) {
 
 export function AppShell({ children, userName, avatarUrl, backgroundUrl }: { children: React.ReactNode; userName: string; avatarUrl?: string; backgroundUrl?: string }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activityId = searchParams.get("activityId");
+
+  function navHref(href: string) {
+    if (!activityId) return href;
+    if (!["/routine", "/strategy", "/lock-plan"].includes(href)) return href;
+    return `${href}?activityId=${encodeURIComponent(activityId)}`;
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: "cover", backgroundAttachment: "fixed", backgroundPosition: "center" } : undefined}>
@@ -35,7 +43,7 @@ export function AppShell({ children, userName, avatarUrl, backgroundUrl }: { chi
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={navHref(item.href)}
                   className={cx(
                     "relative flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all",
                     isActive
@@ -80,7 +88,7 @@ export function AppShell({ children, userName, avatarUrl, backgroundUrl }: { chi
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={navHref(item.href)}
                 className={cx(
                   "flex-shrink-0 flex items-center gap-1 px-4 py-2.5 text-xs font-medium border-b-2 transition-all",
                   isActive

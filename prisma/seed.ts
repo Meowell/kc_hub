@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+const DAILY_SCOPE_KEY = "daily";
 
 const users = [
   { name: "提督A", pin: "1001" },
@@ -33,9 +34,9 @@ async function main() {
   // Seed default lock tags
   for (const tag of defaultTags) {
     await prisma.lockTag.upsert({
-      where: { name: tag.name },
+      where: { scopeKey_name: { scopeKey: DAILY_SCOPE_KEY, name: tag.name } },
       update: { colorClass: tag.colorClass, sortOrder: tag.sortOrder },
-      create: tag,
+      create: { ...tag, scopeKey: DAILY_SCOPE_KEY },
     });
   }
 

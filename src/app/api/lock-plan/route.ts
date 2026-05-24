@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma, type LockPlan } from "@prisma/client";
 
+import { normalizeActivityId } from "@/lib/activity-scope";
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertLockAssignmentsString, lockPlanBatchSchema, lockPlanSchema } from "@/lib/validators";
@@ -28,11 +29,13 @@ function isUniqueConstraintError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
+  const { searchParams } = new URL(request.url);
+  const activityId = normalizeActivityId(searchParams.get("activityId"));
   const plans = await prisma.lockPlan.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, tag: { activityId } },
     include: { tag: true },
     orderBy: { createdAt: "desc" },
   });

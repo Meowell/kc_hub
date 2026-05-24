@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
+import { normalizeActivityId } from "@/lib/activity-scope";
 import { prisma } from "@/lib/prisma";
 import { routineRecordSchema } from "@/lib/validators";
 
@@ -9,10 +10,11 @@ export async function GET(request: Request) {
   if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const seaArea = searchParams.get("seaArea") ?? undefined;
+  const activityId = normalizeActivityId(searchParams.get("activityId"));
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get("pageSize") ?? "10", 10) || 10));
 
-  const where = { userId: user.id, ...(seaArea ? { seaArea } : {}) };
+  const where = { userId: user.id, activityId, ...(seaArea ? { seaArea } : {}) };
 
   const [records, totalCount] = await Promise.all([
     prisma.routineRecord.findMany({
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
   const record = await prisma.routineRecord.create({
     data: {
       userId: user.id,
+      activityId: normalizeActivityId(parsed.data.activityId),
       seaArea: parsed.data.seaArea,
       missionName: parsed.data.missionName,
       airControl: parsed.data.airControl,
@@ -72,6 +75,7 @@ export async function PATCH(request: Request) {
     where: { id: parsed.data.id, userId: user.id },
     data: {
       seaArea: parsed.data.seaArea,
+      activityId: normalizeActivityId(parsed.data.activityId),
       missionName: parsed.data.missionName,
       airControl: parsed.data.airControl,
       note: parsed.data.note || null,

@@ -61,9 +61,12 @@ type LockPlanGodViewProps = {
     shipDataRaw: string;
     plans: PlanDTO[];
   }>;
+  activityId: string | null;
+  activityLabel: string;
+  isDailyScope: boolean;
 };
 
-export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewProps) {
+export function LockPlanGodView({ initialTags, initialUsers, activityId, activityLabel, isDailyScope }: LockPlanGodViewProps) {
   const { masterData } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const getShipName = useCallback(
@@ -529,7 +532,7 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     const res = await fetch("/api/lock-tags", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, colorClass }),
+      body: JSON.stringify({ name, colorClass, activityId }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -543,7 +546,7 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     const res = await fetch("/api/lock-tags", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id, name, colorClass }),
+      body: JSON.stringify({ id, name, colorClass, activityId }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -594,9 +597,9 @@ export function LockPlanGodView({ initialTags, initialUsers }: LockPlanGodViewPr
     <div className="space-y-6">
       {/* Section 1: Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">🔒 全局锁船总览</h1>
+        <h1 className="text-2xl font-bold text-white">🔒 {activityLabel}锁船总览</h1>
         <p className="mt-1.5 text-sm text-slate-400">
-          所有提督的锁船分配一览 — 标签颜色全局同步。
+          {isDailyScope ? "日常锁船分配一览 — 标签颜色全局同步。" : "本期活动独立锁船分配一览 — 标签和计划不会影响其他活动。"}
         </p>
       </div>
 
