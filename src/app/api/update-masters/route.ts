@@ -10,6 +10,10 @@ const MASTER_SOURCES = [
     label: "Firebase master.json",
     url: "https://firebasestorage.googleapis.com/v0/b/development-74af0.appspot.com/o/master.json?alt=media",
   },
+  {
+    label: "kc_hub bundled shipHp.json",
+    url: "https://raw.githubusercontent.com/Meowell/kc_hub/main/src/data/shipHp.json",
+  },
 ];
 
 const START2_SOURCES = [
@@ -154,6 +158,19 @@ function validateStart2(value: unknown): Start2Data {
   return data;
 }
 
+function normalizeShipHpSource(value: unknown): ShipHpEntry[] {
+  if (Array.isArray(value)) {
+    return value as ShipHpEntry[];
+  }
+  if (value && typeof value === "object") {
+    const data = value as { ships?: unknown };
+    if (Array.isArray(data.ships)) {
+      return data.ships as ShipHpEntry[];
+    }
+  }
+  throw new Error("HP 数据源缺少 ships 数组");
+}
+
 export async function POST() {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
@@ -163,13 +180,10 @@ export async function POST() {
 
   // 1. 更新 shipHp.json
   try {
-    const master = (await fetchJsonFromSources(MASTER_SOURCES, MAX_MASTER_BYTES)) as {
-      ships?: ShipHpEntry[];
-    };
-    if (!master.ships || !Array.isArray(master.ships)) {
-      throw new Error("master.json 缺少 ships 数组");
-    }
-    const hpData = master.ships.map((s) => ({
+    const hpSource = normalizeShipHpSource(
+      await fetchJsonFromSources(MASTER_SOURCES, MAX_MASTER_BYTES),
+    );
+    const hpData = hpSource.map((s) => ({
       id: s.id,
       hp: s.hp,
       hp2: s.hp2,

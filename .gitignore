@@ -8,6 +8,8 @@ node_modules/
 .env
 .env.local
 .env.production
+key.pem
+*.pem
 
 # TypeScript build cache
 tsconfig.tsbuildinfo
