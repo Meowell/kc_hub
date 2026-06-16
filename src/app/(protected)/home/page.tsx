@@ -7,6 +7,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getActiveActivities, resolveActivityScope, scopedPath } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
+import { buildLockMatrixSummary } from "@/lib/lock-plan-helpers";
 import { prisma } from "@/lib/prisma";
 
 function formatDateTime(value: Date | string | null | undefined) {
@@ -48,7 +49,14 @@ export default async function HomePage({
     }),
     prisma.lockPlan.findMany({
       where: { tag: { activityId: scope.activityId, isActive: true } },
-      select: { id: true, assignedData: true, updatedAt: true },
+      select: {
+        id: true,
+        userId: true,
+        tagId: true,
+        assignedData: true,
+        updatedAt: true,
+        user: { select: { name: true } },
+      },
       orderBy: { updatedAt: "desc" },
     }),
     prisma.routineRecord.findMany({
@@ -67,15 +75,18 @@ export default async function HomePage({
 
   const syncedMembers = members.filter((member) => member.shipData?.trim());
   const missingMembers = members.filter((member) => !member.shipData?.trim());
-  const assignedShipCount = lockPlans.reduce((sum, plan) => {
-    try {
-      const parsed = JSON.parse(plan.assignedData);
-      return sum + (Array.isArray(parsed) ? parsed.filter(Boolean).length : 0);
-    } catch {
-      return sum;
-    }
-  }, 0);
+  const lockSummary = buildLockMatrixSummary(
+    tags.map((tag) => ({ id: tag.id, isActive: true })),
+    members.map((member) => ({
+      userId: member.id,
+      hasShipData: !!member.shipData?.trim(),
+      plans: lockPlans
+        .filter((plan) => plan.userId === member.id)
+        .map((plan) => ({ tagId: plan.tagId, assignedData: plan.assignedData })),
+    })),
+  );
   const latestLockUpdate = lockPlans[0]?.updatedAt;
+  const latestLockUser = lockPlans[0]?.user.name;
 
   return (
     <div className="space-y-6">
@@ -132,18 +143,33 @@ export default async function HomePage({
           </div>
         </Panel>
 
-        <Panel eyebrow="LOCK MATRIX" title="锁船状态" status={<StatusBadge variant={tags.length ? "default" : "muted"}>{tags.length ? "ACTIVE" : "EMPTY"}</StatusBadge>}>
-          <div className="grid grid-cols-2 gap-3">
+        <Panel
+          eyebrow="LOCK MATRIX"
+          title="锁船状态"
+          status={<StatusBadge variant={lockSummary.conflictCount ? "danger" : tags.length ? "default" : "muted"}>{lockSummary.conflictCount ? "CONFLICT" : tags.length ? "ACTIVE" : "EMPTY"}</StatusBadge>}
+        >
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <p className="text-3xl font-bold tabular-nums text-white">{tags.length}</p>
               <p className="mt-1 text-sm text-slate-400">标签数</p>
             </div>
             <div>
-              <p className="text-3xl font-bold tabular-nums text-white">{assignedShipCount}</p>
+              <p className="text-3xl font-bold tabular-nums text-white">{lockSummary.assignedShipCount}</p>
               <p className="mt-1 text-sm text-slate-400">已分配舰船</p>
             </div>
+            <div>
+              <p className={lockSummary.conflictCount ? "text-3xl font-bold tabular-nums text-red-200" : "text-3xl font-bold tabular-nums text-emerald-200"}>{lockSummary.conflictCount}</p>
+              <p className="mt-1 text-sm text-slate-400">冲突</p>
+            </div>
           </div>
-          <p className="mt-4 terminal-label text-xs text-slate-500">LAST SYNC / {formatDateTime(latestLockUpdate)}</p>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <p className="terminal-label text-xs text-slate-500">
+              LAST SYNC / {formatDateTime(latestLockUpdate)}{latestLockUser ? ` / ${latestLockUser}` : ""}
+            </p>
+            <Link href={scopedPath("/lock-plan", scope.activityId)} className="text-xs text-primary hover:text-sky-200">
+              {lockSummary.conflictCount ? "进入冲突筛选" : "进入矩阵"}
+            </Link>
+          </div>
         </Panel>
 
         <Panel eyebrow="ADMIRAL STATUS" title="个人状态" status={<StatusBadge variant="muted">USER</StatusBadge>}>

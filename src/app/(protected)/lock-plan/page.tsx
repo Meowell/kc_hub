@@ -79,6 +79,7 @@ export default async function LockPlanGlobalPage({
           isActive: t.isActive,
         }))}
         initialUsers={mappedUsers}
+        currentUserId={currentUser.id}
         activityId={scope.activityId}
         activityLabel={scope.label}
         isDailyScope={scope.isDaily}

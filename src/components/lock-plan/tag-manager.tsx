@@ -7,6 +7,15 @@ import { Card } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { tagColorClasses } from "@/lib/validators";
@@ -15,14 +24,16 @@ type TagInfo = { id: string; name: string; colorClass: string; sortOrder: number
 
 type TagManagerProps = {
   tags: TagInfo[];
+  deleteImpacts?: Record<string, { planCount: number; assignedShipCount: number; affectedUserIds: string[] }>;
   onAdd: (name: string, colorClass: string) => Promise<void>;
   onEdit: (id: string, name: string, colorClass: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 };
 
-export function TagManager({ tags, onAdd, onEdit, onDelete }: TagManagerProps) {
+export function TagManager({ tags, deleteImpacts = {}, onAdd, onEdit, onDelete }: TagManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingTag, setEditingTag] = useState<TagInfo | null>(null);
+  const [tagToDisable, setTagToDisable] = useState<TagInfo | null>(null);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("bg-red-200");
   const [saving, setSaving] = useState(false);
@@ -41,6 +52,19 @@ export function TagManager({ tags, onAdd, onEdit, onDelete }: TagManagerProps) {
     finally { setSaving(false); }
   }
 
+  async function handleDisable() {
+    if (!tagToDisable) return;
+    setSaving(true);
+    try {
+      await onDelete(tagToDisable.id);
+      setTagToDisable(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const disableImpact = tagToDisable ? deleteImpacts[tagToDisable.id] : null;
+
   return (
     <>
       <Card className="flex flex-wrap items-center gap-2 bg-slate-800/40 border-slate-700/50">
@@ -58,9 +82,10 @@ export function TagManager({ tags, onAdd, onEdit, onDelete }: TagManagerProps) {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`确定要删除标签 "${tag.name}" 吗？相关锁船数据将被清除。`)) onDelete(tag.id);
+                setTagToDisable(tag);
               }}
-              className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white group-hover:flex"
+              className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-sm bg-red-500 text-[10px] text-white group-hover:flex"
+              title="停用标签"
             >
               ✕
             </button>
@@ -108,6 +133,42 @@ export function TagManager({ tags, onAdd, onEdit, onDelete }: TagManagerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!tagToDisable}
+        onOpenChange={(open) => {
+          if (!open) setTagToDisable(null);
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>停用锁船标签</AlertDialogTitle>
+          <AlertDialogDescription>
+            {tagToDisable ? `将停用「${tagToDisable.name}」。标签会从当前矩阵隐藏，已有锁船计划保留在数据库中，后续可通过恢复能力重新启用。` : ""}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="border border-border-base bg-slate-950/30 px-2 py-3">
+            <p className="terminal-label text-[10px] text-slate-500">PLANS</p>
+            <p className="mt-1 text-lg font-semibold text-white">{disableImpact?.planCount ?? 0}</p>
+          </div>
+          <div className="border border-border-base bg-slate-950/30 px-2 py-3">
+            <p className="terminal-label text-[10px] text-slate-500">SHIPS</p>
+            <p className="mt-1 text-lg font-semibold text-white">{disableImpact?.assignedShipCount ?? 0}</p>
+          </div>
+          <div className="border border-border-base bg-slate-950/30 px-2 py-3">
+            <p className="terminal-label text-[10px] text-slate-500">USERS</p>
+            <p className="mt-1 text-lg font-semibold text-white">{disableImpact?.affectedUserIds.length ?? 0}</p>
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setTagToDisable(null)}>
+            取消
+          </AlertDialogCancel>
+          <AlertDialogAction variant="danger" onClick={handleDisable} disabled={saving}>
+            {saving ? "停用中..." : "确认停用"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
     </>
   );
 }

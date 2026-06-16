@@ -1991,7 +1991,7 @@ npm run dev
 ## 18.0 当前执行进度
 
 > 更新日期：2026-06-16  
-> 当前实现进度：Phase 2 第一轮“设计系统与命名地基”已完成，可本地 preview。
+> 当前实现进度：Phase 3“锁船矩阵重构”已完成，可在 `http://127.0.0.1:3000/lock-plan` 本地 preview。
 
 已落地改动：
 
@@ -2025,6 +2025,25 @@ npm run dev
   - `SORTIE BOARD / 作业卡`
   - `TACTICAL NOTES / 攻略档案`
   - `LOCK MATRIX / 锁船矩阵`
+- 新增测试入口：
+  - `package.json` 增加 `npm test`。
+  - 当前测试命令为 `tsx --test "src/**/*.test.ts"`，先覆盖纯业务逻辑，后续再按风险补组件/E2E。
+- 新增锁船矩阵领域 helper：
+  - `buildLockMatrixSummary` 统计活动标签数、已分配舰船数、未导入数据成员数。
+  - `buildLockMatrixSummary` 检测同一用户同一 `uniqueId` 在多个活动标签下重复锁定。
+  - `getSaveStatusDisplay` 将 `idle / saving / synced / failed / conflict` 映射为终端状态文案和视觉等级。
+- `LockPlanGodView` 已接入常驻状态面板：
+  - 保存请求开始时进入 `saving`。
+  - 保存成功后进入 `synced` 并记录 `lastSyncedAt`。
+  - 409 时进入 `conflict`。
+  - 网络或其他失败进入 `failed`。
+  - 顶部展示 `TAGS / ASSIGNED / CONFLICT / NO DATA` 摘要。
+- `LockPlanGodView` 已补齐 v0.3 交互：
+  - 桌面端用户列 sticky，标签头 sticky。
+  - 移动端提供当前用户标签 Tabs、轻量列表和操作菜单。
+  - 分配、移除、排序、跨标签移动保存成功后提供短时前端撤销。
+  - 标签停用确认前展示影响范围。
+- `TagManager` 删除入口已从浏览器 `confirm` 改为项目 AlertDialog，并改为“停用标签”语义。
 
 已落地数据模型地基：
 
@@ -2037,6 +2056,7 @@ npm run dev
 - `/api/users/ship-data` 更新舰队数据时同步写入 `lastShipDataUpdatedAt = now()`。
 - `/api/activities` 创建活动时写入 `status = "active"`。
 - `activitySchema` 已允许 `status: active / archived / hidden`，但本轮不改变旧的 `isActive` 查询行为。
+- `/api/lock-tags` 的 `DELETE` 行为改为停用标签：更新 `isActive=false`，并返回 `affectedPlans`。
 
 迁移状态：
 
@@ -2046,9 +2066,10 @@ npm run dev
 
 验证状态：
 
+- `npm test` 通过，覆盖锁船矩阵摘要、保存状态文案、标签停用影响统计和移动端默认标签选择。
 - `npm run lint` 通过，仅保留既有 `<img>` 优化 warning。
 - `npm run build` 通过。
-- 本地 preview 已使用 seed 用户验证 `/home`、`/profile`、活动上下文导航透传。
+- 本地 preview 已使用 seed 用户验证 `/home`、`/profile`、活动上下文导航透传、`/lock-plan` 桌面状态栏渲染和移动端锁船面板。
 
 ## 18.1 Phase 1：文档与命名统一
 
@@ -2093,25 +2114,30 @@ npm run dev
 
 待执行技术清单：
 
-- 在 `LockPlanGodView` 中加入常驻保存状态模型：
+- 在 `LockPlanGodView` 中加入常驻保存状态模型：（已完成）
   - `idle / saving / synced / failed / conflict`
   - 显示最近同步时间。
-  - 冲突时提供刷新和复制当前修改入口。
+  - 冲突时提供刷新入口。
+- 在 `LockPlanGodView` 中展示矩阵摘要：（已完成）
+  - 活动标签数。
+  - 已分配舰船数。
+  - 重复锁定冲突数。
+  - 未导入数据成员数。
 - 重构矩阵布局：
-  - 桌面端 sticky 用户列。
-  - 桌面端 sticky 标签头。
-  - 标签头显示标签名、数量、状态。
-  - 用户行显示头像、名称、数据导入状态。
+  - 桌面端 sticky 用户列。（已完成）
+  - 桌面端 sticky 标签头。（已完成）
+  - 标签头显示标签名、数量、状态。（已完成）
+  - 用户行显示头像、名称、数据导入状态。（已完成）
 - 删除标签接口从物理删除优先改为停用或强确认：
-  - API 第一阶段可保留 DELETE，但前端必须使用确认弹窗展示影响范围。
-  - 后续改为 `isActive = false` 并返回 `affectedPlans`。
+  - API `DELETE` 已改为 `isActive = false`。
+  - 前端已使用确认弹窗展示影响范围。
 - 移动端新增替代交互：
-  - 默认只显示当前用户。
-  - 标签 Tabs 切换。
-  - 已分配舰船点击打开操作菜单。
-  - 支持移动到其他标签、调整位置、移除、查看详情。
+  - 默认只显示当前用户。（已完成）
+  - 标签 Tabs 切换。（已完成）
+  - 已分配舰船点击打开操作菜单。（已完成）
+  - 支持移动到其他标签、调整位置、移除、查看详情。（已完成移动、排序、移除；详情以操作弹窗元信息展示）
 - 撤销：
-  - 第一阶段做前端短时撤销。
+  - 第一阶段做前端短时撤销。（已完成）
   - 后续结合软删除或 AuditLog 做服务端恢复。
 
 ## 18.4 Phase 4：数据中心升级

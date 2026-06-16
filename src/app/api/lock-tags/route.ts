@@ -81,7 +81,13 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "缺少标签 ID" }, { status: 400 });
   }
 
-  await prisma.lockTag.delete({ where: { id } });
+  const [tag, affectedPlans] = await prisma.$transaction([
+    prisma.lockTag.update({
+      where: { id },
+      data: { isActive: false },
+    }),
+    prisma.lockPlan.count({ where: { tagId: id } }),
+  ]);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, tag, affectedPlans });
 }

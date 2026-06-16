@@ -222,7 +222,7 @@ export function TagLockColumn({
       onDragLeave={handleColumnDragLeave}
       onDrop={handleColumnDrop}
     >
-      <div className={cn("mb-2 flex items-center justify-between gap-2 px-2 py-1 rounded-lg", tagColorClass)}>
+      <div className={cn("sticky top-0 z-10 mb-2 flex items-center justify-between gap-2 rounded-sm px-2 py-1 shadow-sm", tagColorClass)}>
         <span className="text-sm font-bold text-slate-800 whitespace-nowrap">{tagName}</span>
         <div className="flex items-center gap-1">
           <button

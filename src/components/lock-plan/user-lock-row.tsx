@@ -32,25 +32,31 @@ export function UserLockRow({
   const planByTagId = new Map(plans.map((p) => [p.tagId, p]));
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        {avatarUrl ? (
-          <img src={avatarUrl} alt={userName} className="h-8 w-8 rounded-full object-cover ring-2 ring-blue-500/30" />
-        ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white ring-2 ring-blue-500/30">
-            {userName.charAt(0).toUpperCase()}
+    <div className="overflow-x-auto pb-2">
+      <div className="flex min-w-max items-start gap-4">
+        <div className="sticky left-0 z-20 w-[180px] shrink-0 border border-border-base bg-bg-panel/95 p-3 shadow-xl shadow-black/20">
+          <div className="flex items-center gap-3">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={userName} className="h-8 w-8 rounded-md object-cover ring-1 ring-blue-500/30" />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-md border border-blue-500/30 bg-blue-600/20 text-sm font-bold text-blue-100">
+                {userName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-bold text-white">{userName}</h3>
+              <p className="terminal-label mt-0.5 text-[10px] text-slate-500">{hasShipData ? "DATA READY" : "NO DATA"}</p>
+            </div>
           </div>
-        )}
-        <h3 className="text-base font-bold text-white">{userName}</h3>
-        {!hasShipData && (
-          <Badge variant="secondary" className="text-yellow-400 bg-yellow-500/10 border-yellow-500/20">
-            未导入存档
-          </Badge>
-        )}
-      </div>
+          {!hasShipData && (
+            <Badge variant="secondary" className="mt-3 text-yellow-400 bg-yellow-500/10 border-yellow-500/20">
+              未导入存档
+            </Badge>
+          )}
+        </div>
 
-      {hasShipData ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        {hasShipData ? (
+          <div className="flex gap-4">
           {tags.map((tag) => {
             const plan = planByTagId.get(tag.id);
             return (
@@ -71,10 +77,13 @@ export function UserLockRow({
               />
             );
           })}
-        </div>
-      ) : (
-        <p className="text-sm text-slate-500 pl-11">该提督尚未导入 noro6 舰船数据</p>
-      )}
+          </div>
+        ) : (
+          <div className="flex min-h-24 w-[520px] items-center border border-dashed border-border-base bg-slate-950/20 px-4 text-sm text-slate-500">
+            该提督尚未导入 noro6 舰船数据
+          </div>
+        )}
+      </div>
     </div>
   );
 }

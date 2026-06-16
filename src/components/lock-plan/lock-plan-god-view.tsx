@@ -15,8 +15,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Panel } from "@/components/ui/panel";
 import { Separator } from "@/components/ui/separator";
-import { parseAssignments, type LockAssignment } from "@/lib/lock-plan-helpers";
+import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  buildLockMatrixSummary,
+  getSaveStatusDisplay,
+  getDefaultMobileTagId,
+  getTagDisableImpact,
+  parseAssignments,
+  type LockAssignment,
+  type LockSaveStatus,
+} from "@/lib/lock-plan-helpers";
 import { createMasterLookup, getShipNameFromLookup, getShipTypeFromLookup } from "@/lib/master-data";
 import { deriveShipStock, type ShipStock } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
@@ -44,6 +54,10 @@ type PlanMutation = {
   assignedData: string;
   note?: string | null;
 };
+type PendingUndo = {
+  label: string;
+  mutations: PlanMutation[];
+};
 
 class PlanSaveConflictError extends Error {}
 
@@ -62,11 +76,12 @@ type LockPlanGodViewProps = {
     plans: PlanDTO[];
   }>;
   activityId: string | null;
+  currentUserId: string;
   activityLabel: string;
   isDailyScope: boolean;
 };
 
-export function LockPlanGodView({ initialTags, initialUsers, activityId, activityLabel, isDailyScope }: LockPlanGodViewProps) {
+export function LockPlanGodView({ initialTags, initialUsers, activityId, currentUserId, activityLabel, isDailyScope }: LockPlanGodViewProps) {
   const { masterData } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const getShipName = useCallback(
@@ -159,10 +174,20 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
     targetTagName: string;
   } | null>(null);
   const pendingAssignmentRef = useRef<ShipStock | null>(null);
+  const [mobileTagId, setMobileTagId] = useState("");
+  const [mobileAction, setMobileAction] = useState<{
+    uniqueId: string;
+    shipId: number;
+    tagId: string;
+    index: number;
+  } | null>(null);
 
   // ---- Error / saving ----
   const [error, setError] = useState("");
   const [planConflictMessage, setPlanConflictMessage] = useState("");
+  const [saveStatus, setSaveStatus] = useState<LockSaveStatus>("idle");
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
 
   // ==========================================================
   // Derived: build shipLockMap for each user
@@ -211,6 +236,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
   // ==========================================================
   const savePlans = useCallback(
     async (mutations: PlanMutation[]) => {
+      setSaveStatus("saving");
       const payloadPlans = mutations.map((mutation) => {
         const id = planIdsByUser[mutation.userId]?.[mutation.tagId];
         return {
@@ -224,22 +250,33 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
       });
       const single = payloadPlans.length === 1 ? payloadPlans[0] : null;
 
-      const response = await fetch("/api/lock-plan", {
-        method: single ? (single.id ? "PATCH" : "POST") : "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(single ?? { plans: payloadPlans }),
-      });
+      let response: Response;
+      let data: { error?: string; plans?: SavedPlanDTO[]; plan?: SavedPlanDTO };
+      try {
+        response = await fetch("/api/lock-plan", {
+          method: single ? (single.id ? "PATCH" : "POST") : "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(single ?? { plans: payloadPlans }),
+        });
+        data = await response.json();
+      } catch (e) {
+        setSaveStatus("failed");
+        throw e instanceof Error ? e : new Error("保存失败");
+      }
 
-      const data = await response.json();
       if (!response.ok) {
         if (response.status === 409) {
+          setSaveStatus("conflict");
           throw new PlanSaveConflictError(data.error ?? "该锁船规划刚被其他人修改，请刷新页面后再编辑");
         }
+        setSaveStatus("failed");
         throw new Error(data.error ?? "保存失败");
       }
 
       const savedPlans: SavedPlanDTO[] = data.plans ?? (data.plan ? [data.plan] : []);
       applySavedPlanVersions(savedPlans);
+      setLastSyncedAt(new Date());
+      setSaveStatus("synced");
       return data;
     },
     [applySavedPlanVersions, planIdsByUser, planVersionsByUser],
@@ -290,8 +327,10 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
     if (sourceTagId === tagId) return; // Already in same tag
 
     let newSource: LockAssignment[] | null = null;
+    let sourceDataForUndo = "[]";
     if (sourceTagId) {
       const sourceData = currentPlans[sourceTagId] ?? "[]";
+      sourceDataForUndo = sourceData;
       newSource = parseAssignments(sourceData)
         .filter((a): a is LockAssignment => a !== null && a.uniqueId !== ship.uniqueId);
       // Trim trailing nulls
@@ -317,8 +356,19 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
           { userId, tagId: sourceTagId, assignedData: JSON.stringify(newSource) },
           { userId, tagId, assignedData: JSON.stringify(newTarget) },
         ]);
+        setPendingUndo({
+          label: "撤销移动舰船",
+          mutations: [
+            { userId, tagId: sourceTagId, assignedData: sourceDataForUndo },
+            { userId, tagId, assignedData: targetData },
+          ],
+        });
       } else {
         await savePlans([{ userId, tagId, assignedData: JSON.stringify(newTarget) }]);
+        setPendingUndo({
+          label: "撤销分配舰船",
+          mutations: [{ userId, tagId, assignedData: targetData }],
+        });
       }
     } catch (e) {
       // Rollback
@@ -406,6 +456,10 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
 
     try {
       await savePlans([{ userId, tagId, assignedData: newData }]);
+      setPendingUndo({
+        label: "撤销移除舰船",
+        mutations: [{ userId, tagId, assignedData: data }],
+      });
     } catch (e) {
       // Rollback
       setPlansByUser((prev) => {
@@ -441,6 +495,10 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
 
     try {
       await savePlans([{ userId, tagId, assignedData: newData }]);
+      setPendingUndo({
+        label: "撤销排序调整",
+        mutations: [{ userId, tagId, assignedData: oldData }],
+      });
     } catch (e) {
       // Rollback
       setPlansByUser((prev) => {
@@ -508,6 +566,13 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
         { userId, tagId: sourceTagId, assignedData: JSON.stringify(newSource) },
         { userId, tagId: targetTagId, assignedData: JSON.stringify(targetAssignments) },
       ]);
+      setPendingUndo({
+        label: "撤销移动舰船",
+        mutations: [
+          { userId, tagId: sourceTagId, assignedData: sourceData },
+          { userId, tagId: targetTagId, assignedData: targetData },
+        ],
+      });
     } catch (e) {
       // Rollback
       setPlansByUser((prev) => {
@@ -521,6 +586,34 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
         setPlanConflictMessage(e.message);
       } else {
         setError(e instanceof Error ? e.message : "移动保存失败");
+      }
+    }
+  }
+
+  async function undoLastOperation() {
+    if (!pendingUndo) return;
+    const undo = pendingUndo;
+    const previousPlansByUser = plansByUser;
+
+    setError("");
+    setPlansByUser((prev) => {
+      const next = structuredClone(prev);
+      for (const mutation of undo.mutations) {
+        if (!next[mutation.userId]) next[mutation.userId] = {};
+        next[mutation.userId][mutation.tagId] = mutation.assignedData;
+      }
+      return next;
+    });
+
+    try {
+      await savePlans(undo.mutations);
+      setPendingUndo(null);
+    } catch (e) {
+      setPlansByUser(previousPlansByUser);
+      if (e instanceof PlanSaveConflictError) {
+        setPlanConflictMessage(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "撤销失败");
       }
     }
   }
@@ -559,7 +652,10 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
     const res = await fetch(`/api/lock-tags?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "停用标签失败");
+    }
     setTags((prev) => prev.filter((t) => t.id !== id));
   }
 
@@ -591,18 +687,157 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
     return map;
   }, [initialUsers]);
 
-  const activeTags = tags.filter((t) => t.isActive);
+  const activeTags = useMemo(() => tags.filter((t) => t.isActive), [tags]);
+  const currentUser = initialUsers.find((user) => user.userId === currentUserId) ?? initialUsers[0];
+  const matrixSummary = useMemo(
+    () =>
+      buildLockMatrixSummary(
+        activeTags,
+        initialUsers.map((user) => {
+          const userPlansState = plansByUser[user.userId] ?? {};
+          return {
+            userId: user.userId,
+            hasShipData: !!user.shipDataRaw?.trim(),
+            plans: activeTags.map((tag) => ({
+              tagId: tag.id,
+              assignedData: userPlansState[tag.id] ?? "[]",
+            })),
+          };
+        }),
+      ),
+    [activeTags, initialUsers, plansByUser],
+  );
+  const saveStatusDisplay = getSaveStatusDisplay(saveStatus, lastSyncedAt);
+  const tagDisableImpacts = useMemo(
+    () => {
+      const users = initialUsers.map((user) => ({
+        userId: user.userId,
+        plans: activeTags.map((tag) => ({
+          tagId: tag.id,
+          assignedData: plansByUser[user.userId]?.[tag.id] ?? "[]",
+        })),
+      }));
+
+      return Object.fromEntries(
+        activeTags.map((tag) => [tag.id, getTagDisableImpact(tag.id, users)]),
+      );
+    },
+    [activeTags, initialUsers, plansByUser],
+  );
+
+  const currentUserPlans = useMemo(
+    () => plansByUser[currentUser?.userId ?? ""] ?? {},
+    [currentUser?.userId, plansByUser],
+  );
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setMobileTagId((prev) => {
+      if (prev && activeTags.some((tag) => tag.id === prev)) return prev;
+      return getDefaultMobileTagId(activeTags, currentUserPlans);
+    });
+  }, [activeTags, currentUser, currentUserPlans]);
+
+  const selectedMobileTag = activeTags.find((tag) => tag.id === mobileTagId) ?? activeTags[0];
+  const selectedMobileAssignments = selectedMobileTag
+    ? parseAssignments(currentUserPlans[selectedMobileTag.id] ?? "[]")
+    : [];
+  const selectedMobileShips = useMemo(
+    () => currentUser ? shipsByUser[currentUser.userId] ?? [] : [],
+    [currentUser, shipsByUser],
+  );
+  const selectedShipByUniqueId = useMemo(() => {
+    const map = new Map<string, ShipStock>();
+    for (const ship of selectedMobileShips) {
+      map.set(ship.uniqueId, ship);
+    }
+    return map;
+  }, [selectedMobileShips]);
+
+  function openMobilePicker(index: number) {
+    if (!currentUser || !selectedMobileTag) return;
+    openPicker(currentUser.userId, selectedMobileTag.id, index);
+  }
+
+  async function moveMobileShip(targetTagId: string) {
+    if (!currentUser || !mobileAction) return;
+    const targetAssignments = parseAssignments(currentUserPlans[targetTagId] ?? "[]");
+    const targetIndex = targetAssignments.filter(Boolean).length;
+    await handleDropShip(
+      currentUser.userId,
+      targetTagId,
+      mobileAction.uniqueId,
+      mobileAction.shipId,
+      mobileAction.tagId,
+      targetIndex,
+    );
+    setMobileAction(null);
+    setMobileTagId(targetTagId);
+  }
+
+  async function shiftMobileShip(direction: -1 | 1) {
+    if (!currentUser || !mobileAction) return;
+    const data = currentUserPlans[mobileAction.tagId] ?? "[]";
+    const assignments = parseAssignments(data);
+    const targetIndex = mobileAction.index + direction;
+    if (targetIndex < 0 || targetIndex >= assignments.length) return;
+    const next = [...assignments];
+    const tmp = next[mobileAction.index];
+    next[mobileAction.index] = next[targetIndex];
+    next[targetIndex] = tmp;
+    await handleReorder(currentUser.userId, mobileAction.tagId, next);
+    setMobileAction({ ...mobileAction, index: targetIndex });
+  }
 
   return (
     <div className="space-y-6">
       {/* Section 1: Header */}
-      <div>
-        <p className="terminal-label text-xs font-semibold text-primary">LOCK MATRIX / 锁船矩阵</p>
-        <h1 className="mt-2 text-2xl font-bold text-white">{activityLabel}锁船矩阵</h1>
-        <p className="mt-1.5 text-sm text-slate-400">
-          {isDailyScope ? "日常锁船分配一览 — 标签颜色全局同步。" : "本期活动独立锁船分配一览 — 标签和计划不会影响其他活动。"}
-        </p>
-      </div>
+      <Panel
+        eyebrow="LOCK MATRIX"
+        title={`${activityLabel}锁船矩阵`}
+        status={<StatusBadge variant={saveStatusDisplay.variant}>{saveStatusDisplay.label}</StatusBadge>}
+        actions={pendingUndo ? (
+          <button
+            type="button"
+            onClick={undoLastOperation}
+            className="border border-border-base bg-slate-950/35 px-2 py-1 text-xs font-semibold text-slate-200 hover:border-primary/60 hover:text-sky-100"
+          >
+            {pendingUndo.label}
+          </button>
+        ) : null}
+        dense
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <p className="text-sm text-slate-400">
+              {isDailyScope ? "日常锁船分配一览，标签颜色全局同步。" : "本期活动独立锁船分配一览，标签和计划不会影响其他活动。"}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">{saveStatusDisplay.detail}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">TAGS</p>
+              <p className="text-lg font-semibold text-white">{matrixSummary.activeTagCount}</p>
+            </div>
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">ASSIGNED</p>
+              <p className="text-lg font-semibold text-white">{matrixSummary.assignedShipCount}</p>
+            </div>
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">CONFLICT</p>
+              <p className={matrixSummary.conflictCount > 0 ? "text-lg font-semibold text-red-200" : "text-lg font-semibold text-emerald-200"}>
+                {matrixSummary.conflictCount}
+              </p>
+            </div>
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">NO DATA</p>
+              <p className={matrixSummary.missingShipDataCount > 0 ? "text-lg font-semibold text-amber-200" : "text-lg font-semibold text-emerald-200"}>
+                {matrixSummary.missingShipDataCount}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Panel>
 
       {/* Error banner */}
       {error && (
@@ -617,13 +852,111 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
       {/* Section 2: Tag Manager */}
       <TagManager
         tags={activeTags}
+        deleteImpacts={tagDisableImpacts}
         onAdd={handleAddTag}
         onEdit={handleEditTag}
         onDelete={handleDeleteTag}
       />
 
+      {/* Section 3a: Mobile current-user flow */}
+      {currentUser && (
+        <Panel
+          eyebrow="MOBILE LOCK"
+          title="我的锁船"
+          status={<StatusBadge variant={currentUser.shipDataRaw?.trim() ? "default" : "warning"}>{currentUser.shipDataRaw?.trim() ? "EDIT" : "NO DATA"}</StatusBadge>}
+          className="md:hidden"
+          dense
+        >
+          {!currentUser.shipDataRaw?.trim() ? (
+            <p className="text-sm text-slate-500">当前账号尚未导入 noro6 舰船数据，导入后可在移动端按标签轻量编辑。</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {activeTags.map((tag) => {
+                  const count = parseAssignments(currentUserPlans[tag.id] ?? "[]").filter(Boolean).length;
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => {
+                        setMobileTagId(tag.id);
+                        setMobileAction(null);
+                      }}
+                      className={`shrink-0 border px-3 py-2 text-left text-xs font-semibold ${
+                        selectedMobileTag?.id === tag.id
+                          ? "border-primary bg-primary/15 text-sky-100"
+                          : "border-border-base bg-slate-950/25 text-slate-300"
+                      }`}
+                    >
+                      <span className="block terminal-label">{tag.name}</span>
+                      <span className="mt-1 block text-[11px] text-slate-500">{count} SHIPS</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-2">
+                {selectedMobileAssignments.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => openMobilePicker(0)}
+                    className="flex min-h-14 w-full items-center justify-center border border-dashed border-border-base bg-slate-950/25 text-sm font-semibold text-slate-400"
+                  >
+                    + 选择舰船
+                  </button>
+                ) : (
+                  selectedMobileAssignments.map((assignment, index) => {
+                    if (!assignment) {
+                      return (
+                        <button
+                          key={`mobile-empty-${index}`}
+                          type="button"
+                          onClick={() => openMobilePicker(index)}
+                          className="flex min-h-12 w-full items-center justify-center border border-dashed border-border-base bg-slate-950/25 text-xs text-slate-500"
+                        >
+                          + 空槽位
+                        </button>
+                      );
+                    }
+                    const ship = selectedShipByUniqueId.get(assignment.uniqueId);
+                    return (
+                      <button
+                        key={assignment.uniqueId}
+                        type="button"
+                        onClick={() => setMobileAction({
+                          uniqueId: assignment.uniqueId,
+                          shipId: assignment.shipId,
+                          tagId: selectedMobileTag?.id ?? "",
+                          index,
+                        })}
+                        className="flex min-h-14 w-full items-center justify-between gap-3 border border-border-base bg-slate-950/35 px-3 text-left"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-slate-100">{getShipName(assignment.shipId)}</span>
+                          <span className="terminal-label mt-1 block text-[11px] text-slate-500">Lv.{ship?.level ?? "?"} / {getShipType(assignment.shipId)}</span>
+                        </span>
+                        <span className="text-xs text-primary">操作</span>
+                      </button>
+                    );
+                  })
+                )}
+                {selectedMobileAssignments.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => openMobilePicker(selectedMobileAssignments.length)}
+                    className="flex min-h-12 w-full items-center justify-center border border-dashed border-primary/35 bg-primary/10 text-xs font-semibold text-sky-100"
+                  >
+                    + 追加舰船
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </Panel>
+      )}
+
       {/* Section 3: User rows */}
-      <div className="space-y-6">
+      <div className="hidden space-y-6 md:block">
         {initialUsers.map((user, idx) => {
           // Derive plans from plansByUser state (not from initialUsers) so UI reflects real-time changes
           const userPlansState = plansByUser[user.userId] ?? {};
@@ -702,6 +1035,70 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
           <AlertDialogAction onClick={() => window.location.reload()}>
             刷新页面
           </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!mobileAction}
+        onOpenChange={(open) => {
+          if (!open) setMobileAction(null);
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>锁船操作</AlertDialogTitle>
+          <AlertDialogDescription>
+            {mobileAction ? `${getShipName(mobileAction.shipId)} / ${getShipType(mobileAction.shipId)}` : ""}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => shiftMobileShip(-1)}
+              className="border border-border-base bg-slate-950/35 px-3 py-2 text-sm text-slate-200 disabled:opacity-40"
+              disabled={!mobileAction || mobileAction.index <= 0}
+            >
+              上移
+            </button>
+            <button
+              type="button"
+              onClick={() => shiftMobileShip(1)}
+              className="border border-border-base bg-slate-950/35 px-3 py-2 text-sm text-slate-200 disabled:opacity-40"
+              disabled={!mobileAction || mobileAction.index >= selectedMobileAssignments.length - 1}
+            >
+              下移
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {activeTags
+              .filter((tag) => tag.id !== mobileAction?.tagId)
+              .map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => moveMobileShip(tag.id)}
+                  className="border border-border-base bg-slate-950/35 px-3 py-2 text-sm text-slate-200"
+                >
+                  移动到 {tag.name}
+                </button>
+              ))}
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!currentUser || !mobileAction) return;
+              await removeShip(currentUser.userId, mobileAction.tagId, mobileAction.uniqueId);
+              setMobileAction(null);
+            }}
+            className="w-full border border-danger/60 bg-danger/15 px-3 py-2 text-sm font-semibold text-red-100"
+          >
+            移除舰船
+          </button>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setMobileAction(null)}>
+            关闭
+          </AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialog>
 
