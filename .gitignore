@@ -14,6 +14,7 @@ key.pem
 # TypeScript build cache
 tsconfig.tsbuildinfo
 next-env.d.ts
+dev*.log
 
 # Database (do not overwrite on deploy)
 prisma/dev.db
