@@ -1,4 +1,5 @@
 import type { ShipMaster } from "@/lib/master-data";
+import type { MasterLookup } from "@/lib/master-data";
 
 export type Noro6Ship = {
   id: number;
@@ -12,6 +13,20 @@ export type Noro6Data = {
     id: number;
     lv?: number;
   }>;
+};
+
+export type Noro6Preview = {
+  normalizedData: string;
+  shipCount: number;
+  equipmentCount: number;
+  shipTypeCount: number;
+  unknownShipIds: number[];
+  unknownEquipmentIds: number[];
+  hasEquipmentData: boolean;
+  addedShipCount: number;
+  removedShipCount: number;
+  addedEquipmentCount: number;
+  removedEquipmentCount: number;
 };
 
 export type ShipStock = {
@@ -143,6 +158,61 @@ export function parseNoro6Data(value: string): Noro6Data {
   return {
     ships,
     items: data.items as Noro6Data["items"],
+  };
+}
+
+function countById(values: Array<{ id: number }>) {
+  const result = new Map<number, number>();
+  for (const value of values) {
+    result.set(value.id, (result.get(value.id) ?? 0) + 1);
+  }
+  return result;
+}
+
+function countAdded(current: Map<number, number>, previous: Map<number, number>) {
+  let count = 0;
+  for (const [id, amount] of current) {
+    count += Math.max(0, amount - (previous.get(id) ?? 0));
+  }
+  return count;
+}
+
+function uniqueSorted(values: number[]) {
+  return Array.from(new Set(values)).sort((a, b) => a - b);
+}
+
+export function buildNoro6Preview(
+  value: string,
+  existingShipData = "",
+  lookup?: Pick<MasterLookup, "shipNameById" | "equipNameById" | "shipTypeById">,
+): Noro6Preview {
+  const normalizedData = normalizeNoro6Input(value, existingShipData);
+  const data = parseNoro6Data(normalizedData);
+  const previous = existingShipData.trim() ? parseNoro6Data(normalizeNoro6Input(existingShipData)) : { ships: [], items: [] };
+
+  const currentShipCount = countById(data.ships);
+  const previousShipCount = countById(previous.ships);
+  const currentEquipmentCount = countById(data.items);
+  const previousEquipmentCount = countById(previous.items);
+
+  const shipTypeIds = new Set<number>();
+  for (const ship of data.ships) {
+    const typeId = lookup?.shipTypeById.get(ship.id);
+    if (typeId) shipTypeIds.add(typeId);
+  }
+
+  return {
+    normalizedData,
+    shipCount: data.ships.length,
+    equipmentCount: data.items.length,
+    shipTypeCount: shipTypeIds.size,
+    unknownShipIds: lookup ? uniqueSorted(data.ships.filter((ship) => !lookup.shipNameById.has(ship.id)).map((ship) => ship.id)) : [],
+    unknownEquipmentIds: lookup ? uniqueSorted(data.items.filter((item) => !lookup.equipNameById.has(item.id)).map((item) => item.id)) : [],
+    hasEquipmentData: data.items.length > 0,
+    addedShipCount: countAdded(currentShipCount, previousShipCount),
+    removedShipCount: countAdded(previousShipCount, currentShipCount),
+    addedEquipmentCount: countAdded(currentEquipmentCount, previousEquipmentCount),
+    removedEquipmentCount: countAdded(previousEquipmentCount, currentEquipmentCount),
   };
 }
 

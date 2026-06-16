@@ -13,13 +13,19 @@ export async function GET(request: NextRequest) {
   if (userId) {
     const target = await prisma.user.findUnique({
       where: { id: userId },
-      select: { shipData: true },
+      select: { shipData: true, lastShipDataUpdatedAt: true },
     });
     if (!target) return NextResponse.json({ error: "用户不存在" }, { status: 404 });
-    return NextResponse.json({ shipData: target.shipData ?? "" });
+    return NextResponse.json({
+      shipData: target.shipData ?? "",
+      lastShipDataUpdatedAt: target.lastShipDataUpdatedAt,
+    });
   }
 
-  return NextResponse.json({ shipData: user.shipData ?? "" });
+  return NextResponse.json({
+    shipData: user.shipData ?? "",
+    lastShipDataUpdatedAt: user.lastShipDataUpdatedAt,
+  });
 }
 
 export async function PUT(request: Request) {

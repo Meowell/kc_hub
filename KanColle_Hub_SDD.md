@@ -1991,7 +1991,7 @@ npm run dev
 ## 18.0 当前执行进度
 
 > 更新日期：2026-06-16  
-> 当前实现进度：Phase 3“锁船矩阵重构”已完成，可在 `http://127.0.0.1:3000/lock-plan` 本地 preview。
+> 当前实现进度：Phase 4“数据中心升级”已完成第一版，可在本地 preview 查看 `/dashboard` 与 `/strategy`。
 
 已落地改动：
 
@@ -2044,6 +2044,12 @@ npm run dev
   - 分配、移除、排序、跨标签移动保存成功后提供短时前端撤销。
   - 标签停用确认前展示影响范围。
 - `TagManager` 删除入口已从浏览器 `confirm` 改为项目 AlertDialog，并改为“停用标签”语义。
+- 新增 noro6 解析预览领域函数 `buildNoro6Preview`，输出标准化数据、舰船/装备统计、未知 master ID、是否包含装备数据和相对上次导入的差异。
+- 新增 `POST /api/ship-data/preview`，只解析和返回预览，不写数据库。
+- `ShipDataCenter` 保存流程改为“解析预览 -> 确认更新”，并在他人视角禁用导入保存。
+- `ShipDataCenter` 已显示 `lastShipDataUpdatedAt`，`/api/users/ship-data` GET 会返回对应更新时间。
+- 攻略编辑器新增默认模板、实时 Markdown 预览、插入模板和作业卡搜索插入。
+- 新增攻略 helper：`strategy-helpers.ts`，用于模板默认值和作业卡搜索过滤。
 
 已落地数据模型地基：
 
@@ -2067,9 +2073,11 @@ npm run dev
 验证状态：
 
 - `npm test` 通过，覆盖锁船矩阵摘要、保存状态文案、标签停用影响统计和移动端默认标签选择。
+- `npm test` 通过，新增覆盖 noro6 解析预览统计、未知 ID、导入差异、纯舰船导入合并装备、攻略默认模板和作业卡搜索。
 - `npm run lint` 通过，仅保留既有 `<img>` 优化 warning。
 - `npm run build` 通过。
 - 本地 preview 已使用 seed 用户验证 `/home`、`/profile`、活动上下文导航透传、`/lock-plan` 桌面状态栏渲染和移动端锁船面板。
+- 本地 preview 已使用 seed 用户验证 `/dashboard` 解析预览和 `/strategy` 实时预览、默认模板、作业卡搜索入口。
 
 ## 18.1 Phase 1：文档与命名统一
 
@@ -2152,25 +2160,27 @@ npm run dev
 
 改动风险：中。
 
+执行状态：已完成第一版。
+
 待执行技术清单：
 
-- 新增 `/api/ship-data/preview`：
+- 新增 `/api/ship-data/preview`：（已完成）
   - 输入 raw noro6 文本或链接。
   - 返回 normalized 数据、舰船数、装备数、未知舰船 ID、未知装备 ID。
   - 不写数据库。
 - 拆分 noro6 逻辑：
-  - parser / normalizer / derive-ship-stock / derive-equipment-stock / types。
+  - parser / normalizer / derive-ship-stock / derive-equipment-stock / types。（部分完成：预览逻辑已进入 `noro6.ts`，后续再做文件级拆分）
 - 数据中心保存流程改为：
   - 输入。
   - 实时或按钮触发解析。
   - 展示预览。
-  - 用户确认后调用 `/api/users/ship-data` 保存。
-- 舰籍数据页展示 `lastShipDataUpdatedAt`，并标识当前视角用户。
+  - 用户确认后调用 `/api/users/ship-data` 保存。（已完成）
+- 舰籍数据页展示 `lastShipDataUpdatedAt`，并标识当前视角用户。（已完成）
 - 舰船/装备表增加更稳定的搜索、筛选、排序状态。
 - 攻略编辑器升级：
-  - 左编辑右预览。
-  - 默认模板。
-  - 阵容卡搜索插入。
+  - 左编辑右预览。（已完成第一版）
+  - 默认模板。（已完成）
+  - 阵容卡搜索插入。（已完成）
   - Markdown 渲染继续禁用 raw HTML。
 
 ## 18.5 Phase 5：协作可靠性

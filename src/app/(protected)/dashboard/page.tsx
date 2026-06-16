@@ -18,7 +18,11 @@ export default async function DashboardPage() {
         <UpdateMastersButton />
       </div>
 
-      <ShipDataCenter initialShipData={user.shipData ?? ""} currentUserName={user.name} />
+      <ShipDataCenter
+        initialShipData={user.shipData ?? ""}
+        initialLastShipDataUpdatedAt={user.lastShipDataUpdatedAt?.toISOString() ?? null}
+        currentUserName={user.name}
+      />
     </div>
   );
 }

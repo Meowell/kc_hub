@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Panel } from "@/components/ui/panel";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { FleetEditor } from "@/components/routine/fleet-editor";
 import { createMasterLookup } from "@/lib/master-data";
+import { createStrategyFormDefaults, filterRoutineCardsForInsert, STRATEGY_DEFAULT_TEMPLATE } from "@/lib/strategy-helpers";
 import { useMasterData } from "@/lib/use-master-data";
 
 type Post = {
@@ -166,11 +169,11 @@ export function StrategyEditor({
     () => createMasterLookup(masterData).shipNameById,
     [masterData],
   );
-  const emptyForm = { phaseName: "", title: "", content: "" };
-  const [f, setF] = useState(emptyForm);
+  const [f, setF] = useState(createStrategyFormDefaults);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const [showRoutinePicker, setShowRoutinePicker] = useState(false);
+  const [routineSearch, setRoutineSearch] = useState("");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -209,6 +212,14 @@ export function StrategyEditor({
     insertAtCursor(`[card:${cardId}]`);
   }
 
+  function insertTemplate() {
+    if (!f.content.trim()) {
+      setF({ ...f, content: STRATEGY_DEFAULT_TEMPLATE });
+      return;
+    }
+    insertAtCursor(STRATEGY_DEFAULT_TEMPLATE.trim());
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr("");
     const method = editingId ? "PATCH" : "POST";
@@ -216,7 +227,8 @@ export function StrategyEditor({
     const res = await fetch("/api/strategy", { method, headers: { "content-type": "application/json" }, body });
     const d = await res.json();
     if (!res.ok) { setErr(d.error ?? "发布失败"); return; }
-    setF(emptyForm); setEditingId(null);
+    setF(createStrategyFormDefaults()); setEditingId(null);
+    setRoutineSearch("");
     router.refresh();
   }
 
@@ -226,7 +238,7 @@ export function StrategyEditor({
     setErr("");
   }
 
-  function cancelEdit() { setEditingId(null); setF(emptyForm); setErr(""); }
+  function cancelEdit() { setEditingId(null); setF(createStrategyFormDefaults()); setErr(""); setRoutineSearch(""); }
   async function del(id: string) { await fetch(`/api/strategy?id=${id}`, { method: "DELETE" }); router.refresh(); }
 
   const grouped = useMemo(() => {
@@ -236,39 +248,64 @@ export function StrategyEditor({
   }, [posts]);
 
   const routineById = useMemo(() => new Map(routineCards.map((r) => [r.id, r])), [routineCards]);
+  const filteredRoutineCards = useMemo(
+    () => filterRoutineCardsForInsert(routineCards, routineSearch),
+    [routineCards, routineSearch],
+  );
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Editor */}
-      <div className="w-full lg:w-96 shrink-0 rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-6 shadow-lg shadow-black/10 h-fit lg:sticky lg:top-24">
+      <div className="w-full lg:w-[44rem] shrink-0 rounded-md border border-slate-700/50 bg-slate-800/70 p-5 shadow-lg shadow-black/10 h-fit lg:sticky lg:top-24">
         <form onSubmit={submit} className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl">📝</span>
-            <h2 className="text-lg font-semibold text-white">{editingId ? "编辑攻略" : "发布攻略"}</h2>
+          <div className="flex flex-col gap-1 mb-1">
+            <p className="terminal-label text-xs font-semibold text-primary">{editingId ? "EDIT TACTICAL NOTE" : "NEW TACTICAL NOTE"}</p>
+            <h2 className="text-lg font-semibold text-white">{editingId ? "编辑攻略" : "建立战术档案"}</h2>
           </div>
           <Input value={f.phaseName} onChange={(e) => setF({ ...f, phaseName: e.target.value })} placeholder="阶段 (E2-3)" required />
           <Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="标题" required />
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button type="button" onClick={handleUpload}
-              className="flex-1 py-2 text-sm rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 border border-slate-600/30 transition-colors">
-              📸 插入截图
+              className="py-2 text-sm rounded-sm bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 border border-slate-600/30 transition-colors">
+              插入截图
             </button>
             <button type="button" onClick={() => setShowRoutinePicker(!showRoutinePicker)}
-              className="flex-1 py-2 text-sm rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 border border-slate-600/30 transition-colors">
-              📋 插入阵容
+              className="py-2 text-sm rounded-sm bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 border border-slate-600/30 transition-colors">
+              插入作业卡
+            </button>
+            <button type="button" onClick={insertTemplate}
+              className="py-2 text-sm rounded-sm bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 border border-slate-600/30 transition-colors">
+              插入模板
             </button>
           </div>
 
-          <textarea ref={textareaRef} className="min-h-44 font-mono text-sm rounded-lg border border-slate-600 bg-slate-900/80 text-slate-200 px-3 py-2 w-full outline-none focus:border-blue-500/50 placeholder:text-slate-600 resize-y"
-            value={f.content}
-            onChange={(e) => setF({ ...f, content: e.target.value })}
-            placeholder={`## 路线\nE2-3 上路最短\n\n## 配装\n- 战列舰：主主彻侦\n- 空母：舰战×4\n\n支持完整 Markdown 语法，# ## ### 标题 **粗体** *斜体* [链接](url)\n> 引用 - 列表 1. 有序列表 \`代码\` 等\n\n📸 点击「插入截图」📋 点击「插入阵容」`} />
+          <div className="grid gap-3 xl:grid-cols-2">
+            <textarea ref={textareaRef} className="min-h-72 font-mono text-sm rounded-sm border border-slate-600 bg-slate-900/80 text-slate-200 px-3 py-2 w-full outline-none focus:border-blue-500/50 placeholder:text-slate-600 resize-y"
+              value={f.content}
+              onChange={(e) => setF({ ...f, content: e.target.value })}
+              placeholder="使用 Markdown 编写攻略，可插入 [img:url] 与 [card:id]" />
+            <Panel dense eyebrow="LIVE PREVIEW" title="实时预览" status={<StatusBadge variant="muted">MARKDOWN</StatusBadge>} className="min-h-72">
+              <div className="max-h-80 overflow-y-auto pr-1">
+                {f.content.trim() ? (
+                  renderMarkdown(f.content, routineById, shipNameById, toggleExpand, expandedCards)
+                ) : (
+                  <p className="py-10 text-center text-sm text-slate-500">暂无预览内容</p>
+                )}
+              </div>
+            </Panel>
+          </div>
 
           {showRoutinePicker && (
             <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-700/50 bg-slate-900/50 p-2 space-y-1">
-              {routineCards.length === 0 && <p className="text-xs text-slate-500 p-2">暂无周回记录</p>}
-              {routineCards.map((r) => (
+              <Input
+                value={routineSearch}
+                onChange={(e) => setRoutineSearch(e.target.value)}
+                placeholder="搜索海域、任务、上传者"
+                className="mb-2 h-8 text-xs"
+              />
+              {filteredRoutineCards.length === 0 && <p className="text-xs text-slate-500 p-2">无匹配作业卡</p>}
+              {filteredRoutineCards.map((r) => (
                 <button key={r.id} type="button" onClick={() => { insertCard(r.id); setShowRoutinePicker(false); }}
                   className="w-full text-left rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700/50 transition-colors">
                   {r.seaArea} / {r.missionName} <span className="text-slate-600">— {r.user.name}</span>
@@ -278,11 +315,11 @@ export function StrategyEditor({
           )}
 
           <p className="text-[11px] text-slate-600 leading-relaxed">
-            💡 支持 Markdown 语法，光标定位后点击按钮插入。
+            支持 Markdown、截图 token 和作业卡 token，光标定位后点击上方按钮插入。
           </p>
           {err && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{err}</div>}
           <div className="flex gap-2">
-            <Button type="submit" className="flex-1">{editingId ? "💾 保存" : "📢 发布攻略"}</Button>
+            <Button type="submit" className="flex-1">{editingId ? "保存" : "发布攻略"}</Button>
             {editingId && <Button type="button" variant="ghost" onClick={cancelEdit} className="text-xs text-slate-400">取消</Button>}
           </div>
         </form>

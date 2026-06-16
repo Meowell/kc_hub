@@ -2,10 +2,12 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { createMasterLookup } from "@/lib/master-data";
-import { parseNoro6Data, normalizeNoro6Input } from "@/lib/noro6";
+import { parseNoro6Data, type Noro6Preview } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
 
 function baseMin(raw: number | number[] | undefined): number {
@@ -54,28 +56,57 @@ const statHeaders: { key: SortKey; label: string }[] = [
 
 // ---- Component ----
 
-export function ShipDataCenter({ initialShipData, currentUserName }: { initialShipData: string; currentUserName: string }) {
+function formatSyncTime(value: string | null) {
+  if (!value) return "尚未同步";
+  return new Date(value).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function ShipDataCenter({
+  initialShipData,
+  initialLastShipDataUpdatedAt,
+  currentUserName,
+}: {
+  initialShipData: string;
+  initialLastShipDataUpdatedAt: string | null;
+  currentUserName: string;
+}) {
   const { masterData } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const [shipData, setShipData] = useState(initialShipData);
+  const [lastShipDataUpdatedAt, setLastShipDataUpdatedAt] = useState<string | null>(initialLastShipDataUpdatedAt);
   const [inputData, setInputData] = useState("");
+  const [preview, setPreview] = useState<Noro6Preview | null>(null);
+  const [previewSource, setPreviewSource] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const canEditCurrentView = viewerId === null;
 
   async function switchViewer(uid: string | null) {
     if (!uid) {
       setViewerId(null);
       setShipData(initialShipData);
+      setLastShipDataUpdatedAt(initialLastShipDataUpdatedAt);
+      setPreview(null);
+      setPreviewSource("");
       return;
     }
     setViewerId(uid);
+    setPreview(null);
+    setPreviewSource("");
     try {
       const res = await fetch(`/api/users/ship-data?userId=${encodeURIComponent(uid)}`);
       const data = await res.json();
       if (data.shipData !== undefined) {
         setShipData(data.shipData);
+        setLastShipDataUpdatedAt(data.lastShipDataUpdatedAt ?? null);
       }
     } catch { /* ignore */ }
   }
@@ -301,37 +332,76 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
     return equipSortDir === "desc" ? "↓" : "↑";
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function onPreview(e?: FormEvent<HTMLFormElement>) {
+    e?.preventDefault();
     setMessage("");
     setError("");
+    setPreview(null);
+    setPreviewSource("");
+    if (!canEditCurrentView) {
+      setError("当前为他人视角，只能查看，不能更新舰队数据。");
+      return;
+    }
     if (!inputData.trim()) {
       setError("请粘贴 noro6 存档数据");
       return;
     }
-    let normalized: string;
+    setIsPreviewing(true);
     try {
-      normalized = normalizeNoro6Input(inputData, shipData);
-      parseNoro6Data(normalized);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "存档格式不正确");
+      const res = await fetch("/api/ship-data/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shipData: inputData }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "解析失败");
+        return;
+      }
+      setPreview(data.preview);
+      setPreviewSource(inputData);
+      setMessage("解析完成，请确认预览后更新。");
+    } catch {
+      setError("解析失败，请检查网络后重试。");
+    } finally {
+      setIsPreviewing(false);
+    }
+  }
+
+  async function savePreview() {
+    setMessage("");
+    setError("");
+    if (!preview) {
+      setError("请先解析预览");
+      return;
+    }
+    if (previewSource !== inputData) {
+      setError("输入内容已变化，请重新解析预览。");
       return;
     }
     setIsSaving(true);
-    const res = await fetch("/api/users/ship-data", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ shipData: normalized }),
-    });
-    const data = await res.json();
-    setIsSaving(false);
-    if (!res.ok) {
-      setError(data.error ?? "保存失败");
-      return;
+    try {
+      const res = await fetch("/api/users/ship-data", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shipData: preview.normalizedData }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "保存失败");
+        return;
+      }
+      setShipData(preview.normalizedData);
+      setLastShipDataUpdatedAt(data.lastShipDataUpdatedAt ?? new Date().toISOString());
+      setInputData("");
+      setPreview(null);
+      setPreviewSource("");
+      setMessage("舰娘/装备数据已更新");
+    } catch {
+      setError("保存失败，请检查网络后重试。");
+    } finally {
+      setIsSaving(false);
     }
-    setShipData(normalized);
-    setInputData("");
-    setMessage("舰娘/装备数据已更新 ✅");
   }
 
   // 视角切换下拉框
@@ -393,20 +463,62 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         {/* noro6 import card */}
         <div className={`${cardBase} p-4`}>
-          <form onSubmit={onSubmit} className="space-y-2.5">
+          <form onSubmit={onPreview} className="space-y-2.5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="text-base">💾</span>
-                <h2 className="text-sm font-semibold text-white">noro6 数据导入</h2>
+                <h2 className="text-sm font-semibold text-white">DATA SYNC / 数据同步</h2>
               </div>
               <ViewerDropdown currentUserName={currentUserName} viewerId={viewerId} onSwitch={switchViewer} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <StatusBadge variant={canEditCurrentView ? "default" : "muted"}>
+                {canEditCurrentView ? "OWN DATA / 当前用户" : "VIEW ONLY / 他人视角"}
+              </StatusBadge>
+              <span>最后同步：{formatSyncTime(lastShipDataUpdatedAt)}</span>
             </div>
             <Textarea
               className="min-h-20 font-mono text-xs"
               value={inputData}
-              onChange={(e) => setInputData(e.target.value)}
-              placeholder="粘贴舰船/装备/完整外部链接数据"
+              disabled={!canEditCurrentView}
+              onChange={(e) => {
+                setInputData(e.target.value);
+                setPreview(null);
+                setPreviewSource("");
+                setMessage("");
+              }}
+              placeholder={canEditCurrentView ? "粘贴舰船/装备/完整外部链接数据" : "他人视角下不能更新舰队数据"}
             />
+            {preview && (
+              <Panel
+                dense
+                eyebrow="PARSE PREVIEW"
+                title="解析预览"
+                status={<StatusBadge variant={preview.unknownShipIds.length || preview.unknownEquipmentIds.length ? "warning" : "success"}>{preview.unknownShipIds.length || preview.unknownEquipmentIds.length ? "CHECK / 待确认" : "READY / 可更新"}</StatusBadge>}
+              >
+                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                  <div><span className="text-slate-500">舰船</span><p className="font-semibold text-white">{preview.shipCount} 艘</p></div>
+                  <div><span className="text-slate-500">装备</span><p className="font-semibold text-white">{preview.equipmentCount} 件</p></div>
+                  <div><span className="text-slate-500">舰种</span><p className="font-semibold text-white">{preview.shipTypeCount} 类</p></div>
+                  <div><span className="text-slate-500">装备数据</span><p className="font-semibold text-white">{preview.hasEquipmentData ? "包含" : "未包含"}</p></div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-sm border border-border-base bg-slate-950/25 p-2">
+                    <span className="text-slate-500">舰船变化</span>
+                    <p className="mt-1 text-slate-200">新增 {preview.addedShipCount} / 减少 {preview.removedShipCount}</p>
+                  </div>
+                  <div className="rounded-sm border border-border-base bg-slate-950/25 p-2">
+                    <span className="text-slate-500">装备变化</span>
+                    <p className="mt-1 text-slate-200">新增 {preview.addedEquipmentCount} / 减少 {preview.removedEquipmentCount}</p>
+                  </div>
+                </div>
+                {(preview.unknownShipIds.length > 0 || preview.unknownEquipmentIds.length > 0) && (
+                  <div className="mt-3 rounded-sm border border-warning/40 bg-warning/10 p-2 text-xs text-amber-200">
+                    {preview.unknownShipIds.length > 0 && <p>未知舰船 ID：{preview.unknownShipIds.join(", ")}</p>}
+                    {preview.unknownEquipmentIds.length > 0 && <p>未知装备 ID：{preview.unknownEquipmentIds.join(", ")}</p>}
+                  </div>
+                )}
+              </Panel>
+            )}
             {error && (
               <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
                 {error}
@@ -418,19 +530,28 @@ export function ShipDataCenter({ initialShipData, currentUserName }: { initialSh
               </div>
             )}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Button type="submit" disabled={isSaving} className="h-8 text-xs">
-                {isSaving ? "⏳ 更新中..." : "💾 更新"}
+              <Button type="submit" disabled={isPreviewing || isSaving || !canEditCurrentView} className="h-8 text-xs">
+                {isPreviewing ? "解析中..." : "解析预览"}
               </Button>
               <Button
                 type="button"
+                disabled={!preview || isSaving || isPreviewing || !canEditCurrentView}
                 className="h-8 text-xs"
+                onClick={savePreview}
+              >
+                {isSaving ? "更新中..." : "确认更新"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 text-xs sm:col-span-2"
                 onClick={() => {
                   navigator.clipboard.writeText(inputData).then(
-                    () => setMessage("已复制到剪贴板 ✅"),
+                    () => setMessage("已复制到剪贴板"),
                   );
                 }}
               >
-                📋 复制
+                复制输入
               </Button>
             </div>
           </form>
