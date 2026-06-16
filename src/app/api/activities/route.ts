@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     data: {
       name: parsed.data.name,
       description: parsed.data.description || null,
+      status: parsed.data.status ?? "active",
       sortOrder: parsed.data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -51,6 +52,7 @@ export async function PATCH(request: Request) {
       name: parsed.data.name,
       description: parsed.data.description || null,
       ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+      ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
       ...(parsed.data.sortOrder !== undefined ? { sortOrder: parsed.data.sortOrder } : {}),
     },
   });

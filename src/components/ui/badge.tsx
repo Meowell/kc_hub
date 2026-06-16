@@ -8,17 +8,17 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: "bg-blue-600 text-white",
-  secondary: "bg-slate-700 text-slate-300",
-  outline: "border border-slate-600 text-slate-400",
-  accent: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+  default: "border border-primary/45 bg-primary/15 text-sky-100",
+  secondary: "border border-border-base bg-bg-panel-subtle text-slate-300",
+  outline: "border border-border-base text-slate-400",
+  accent: "border border-primary/35 bg-primary/10 text-sky-200",
 };
 
 export function Badge({ className, variant = "default", ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold transition-colors",
+        "inline-flex items-center rounded-sm px-2.5 py-0.5 text-xs font-semibold transition-colors",
         variantStyles[variant],
         className,
       )}

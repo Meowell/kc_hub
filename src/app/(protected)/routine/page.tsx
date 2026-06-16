@@ -87,7 +87,8 @@ export default async function RoutinePage({
       <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">📋 {scope.label}作业卡</h1>
+          <p className="terminal-label text-xs font-semibold text-primary">SORTIE BOARD / 作业卡</p>
+          <h1 className="mt-2 text-2xl font-bold text-white">{scope.label}作业卡</h1>
           <p className="mt-1.5 text-sm text-slate-400">
             {scope.isDaily ? "日常周回阵容与配置存档" : "本期活动独立作业卡与配置存档"}
           </p>

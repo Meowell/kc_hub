@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export function ImageUploader({
   label, icon, initialUrl, apiEndpoint, fieldName, preview, reloadOnChange,
 }: {
-  label: string; icon: string; initialUrl: string | null;
-  apiEndpoint: string; fieldName: string; preview: React.ReactNode;
+  label: string; icon: ReactNode; initialUrl: string | null;
+  apiEndpoint: string; fieldName: string; preview: ReactNode;
   reloadOnChange?: boolean;
 }) {
   const [url, setUrl] = useState(initialUrl);
@@ -48,9 +49,9 @@ export function ImageUploader({
   }
 
   return (
-    <div className="rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-6 shadow-lg shadow-black/10">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xl">{icon}</span>
+    <div className="surface-panel-subtle rounded-md p-4">
+      <div className="mb-4 flex items-center gap-2">
+        <span className="text-primary">{icon}</span>
         <h2 className="font-semibold text-white">{label}</h2>
       </div>
       <div className="flex items-center gap-4">

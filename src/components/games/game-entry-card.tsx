@@ -143,9 +143,7 @@ export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
   return (
     <>
       {/* 入口卡片 */}
-      <div
-        className={`rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-5 shadow-lg shadow-black/10 border-l-4 ${config.border}`}
-      >
+      <div className={`surface-panel-subtle rounded-md border-l-4 p-5 ${config.border}`}>
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium text-slate-400">{config.label}</p>
           <span className="text-2xl">{config.icon}</span>
@@ -174,7 +172,7 @@ export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
         <button
           onClick={handleStart}
           disabled={loading}
-          className="mt-3 w-full py-2 rounded-lg bg-blue-600/80 text-white text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="mt-3 w-full rounded-md border border-primary/45 bg-primary/15 py-2 text-sm font-medium text-sky-100 transition-colors hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "..." : "🎮 开始 (🍙 -1)"}
         </button>

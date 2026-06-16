@@ -597,7 +597,8 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, activit
     <div className="space-y-6">
       {/* Section 1: Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">🔒 {activityLabel}锁船总览</h1>
+        <p className="terminal-label text-xs font-semibold text-primary">LOCK MATRIX / 锁船矩阵</p>
+        <h1 className="mt-2 text-2xl font-bold text-white">{activityLabel}锁船矩阵</h1>
         <p className="mt-1.5 text-sm text-slate-400">
           {isDailyScope ? "日常锁船分配一览 — 标签颜色全局同步。" : "本期活动独立锁船分配一览 — 标签和计划不会影响其他活动。"}
         </p>

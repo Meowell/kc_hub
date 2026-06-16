@@ -24,6 +24,7 @@ export const activitySchema = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().max(500).optional().nullable(),
   isActive: z.boolean().optional(),
+  status: z.enum(["active", "archived", "hidden"]).optional(),
   sortOrder: z.coerce.number().int().min(0).optional(),
 });
 

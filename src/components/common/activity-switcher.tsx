@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -52,13 +53,16 @@ export function ActivitySwitcher({
   }
 
   return (
-    <div className="rounded-xl border border-slate-700/50 bg-slate-800/70 p-3 shadow-lg shadow-black/10">
+    <div className="surface-panel rounded-md p-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2 overflow-x-auto">
+          <span className="terminal-label hidden shrink-0 text-[11px] font-semibold text-slate-500 sm:inline">
+            OPERATION
+          </span>
           <Link
             href={scopeHref(pathname, null)}
             className={cx(
-              "shrink-0 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+              "shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
               currentKey === DAILY_ACTIVITY_ID
                 ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
                 : "border-slate-700/60 bg-slate-900/40 text-slate-400 hover:border-slate-600 hover:text-slate-200",
@@ -71,7 +75,7 @@ export function ActivitySwitcher({
               key={activity.id}
               href={scopeHref(pathname, activity.id)}
               className={cx(
-                "shrink-0 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                "shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
                 currentKey === activity.id
                   ? "border-blue-500/40 bg-blue-500/15 text-blue-300"
                   : "border-slate-700/60 bg-slate-900/40 text-slate-400 hover:border-slate-600 hover:text-slate-200",
@@ -90,19 +94,19 @@ export function ActivitySwitcher({
               autoFocus
               maxLength={80}
               placeholder="活动名"
-              className="h-8 w-40 rounded-lg border border-slate-700 bg-slate-900/80 px-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/60"
+              className="h-8 w-40 rounded-md border border-slate-700 bg-slate-900/80 px-2.5 text-sm text-slate-200 outline-none focus:border-blue-500/60"
             />
             <button
               type="submit"
               disabled={!name.trim()}
-              className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-8 rounded-md border border-primary/50 bg-primary/15 px-3 text-xs font-medium text-sky-100 hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
             >
               创建
             </button>
             <button
               type="button"
               onClick={() => { setAdding(false); setName(""); setError(""); }}
-              className="h-8 rounded-lg px-2.5 text-xs text-slate-400 hover:bg-slate-700/60 hover:text-slate-200"
+              className="h-8 rounded-md px-2.5 text-xs text-slate-400 hover:bg-slate-700/60 hover:text-slate-200"
             >
               取消
             </button>
@@ -111,9 +115,10 @@ export function ActivitySwitcher({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="h-8 shrink-0 rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 text-xs font-medium text-slate-400 transition-colors hover:border-blue-500/40 hover:text-blue-300"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-700/60 bg-slate-900/40 px-3 text-xs font-medium text-slate-400 transition-colors hover:border-blue-500/40 hover:text-blue-300"
           >
-            + 新活动
+            <Plus className="h-3.5 w-3.5" />
+            建立活动档案
           </button>
         )}
       </div>

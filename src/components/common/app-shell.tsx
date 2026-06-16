@@ -1,115 +1,160 @@
 "use client";
 
+import {
+  Anchor,
+  ClipboardList,
+  Database,
+  FileText,
+  Home,
+  LockKeyhole,
+  LogOut,
+  Settings,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { ComponentType, ReactNode } from "react";
 
-const navItems = [
-  { href: "/home", label: "主页", icon: "🏠" },
-  { href: "/dashboard", label: "数据中心", icon: "📊" },
-  { href: "/routine", label: "周回记录", icon: "📋" },
-  { href: "/strategy", label: "攻略贴", icon: "📝" },
-  { href: "/lock-plan", label: "锁船总览", icon: "🔒" },
+import { cn } from "@/lib/utils";
+
+const navItems: Array<{
+  href: string;
+  label: string;
+  code: string;
+  icon: ComponentType<{ className?: string }>;
+  carriesActivity?: boolean;
+}> = [
+  { href: "/home", label: "作战大厅", code: "OPS", icon: Home },
+  { href: "/dashboard", label: "舰籍数据", code: "DATA", icon: Database },
+  { href: "/routine", label: "作业卡", code: "SORTIE", icon: ClipboardList, carriesActivity: true },
+  { href: "/strategy", label: "攻略档案", code: "NOTES", icon: FileText, carriesActivity: true },
+  { href: "/lock-plan", label: "锁船矩阵", code: "LOCK", icon: LockKeyhole, carriesActivity: true },
+  { href: "/profile", label: "个人设置", code: "USER", icon: Settings },
 ];
 
-function cx(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
-}
-
-export function AppShell({ children, userName, avatarUrl, backgroundUrl }: { children: React.ReactNode; userName: string; avatarUrl?: string; backgroundUrl?: string }) {
+export function AppShell({
+  children,
+  userName,
+  avatarUrl,
+  backgroundUrl,
+}: {
+  children: ReactNode;
+  userName: string;
+  avatarUrl?: string;
+  backgroundUrl?: string;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activityId = searchParams.get("activityId");
 
-  function navHref(href: string) {
-    if (!activityId) return href;
-    if (!["/routine", "/strategy", "/lock-plan"].includes(href)) return href;
+  function navHref(href: string, carriesActivity?: boolean) {
+    if (!activityId || !carriesActivity) return href;
     return `${href}?activityId=${encodeURIComponent(activityId)}`;
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: "cover", backgroundAttachment: "fixed", backgroundPosition: "center" } : undefined}>
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-700/50 bg-slate-900/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <Link href="/home" className="flex items-center gap-2.5 shrink-0">
-            <span className="text-2xl">⚓</span>
-            <span className="text-lg font-bold tracking-tight text-white">KanColle Hub</span>
+    <div
+      className="relative min-h-screen overflow-hidden bg-bg-base text-text-main"
+      style={
+        backgroundUrl
+          ? {
+              backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.78), rgba(2, 6, 23, 0.88)), url(${backgroundUrl})`,
+              backgroundSize: "cover",
+              backgroundAttachment: "fixed",
+              backgroundPosition: "center",
+            }
+          : undefined
+      }
+    >
+      <header className="sticky top-0 z-50 border-b border-border-base/80 bg-slate-950/92">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <Link href="/home" className="flex min-w-0 shrink-0 items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-md border border-primary/45 bg-primary/10 text-primary">
+              <Anchor className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="terminal-label block text-[11px] font-semibold text-primary">KANCOLLE HUB</span>
+              <span className="block truncate text-sm font-semibold text-white">舰队协作作战台</span>
+            </span>
           </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden items-center gap-1 lg:flex">
             {navItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
+              const Icon = item.icon;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}
-                  href={navHref(item.href)}
-                  className={cx(
-                    "relative flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all",
+                  href={navHref(item.href, item.carriesActivity)}
+                  className={cn(
+                    "group flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-blue-500/15 text-blue-400"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60",
+                      ? "border-primary/50 bg-primary/12 text-sky-100"
+                      : "border-transparent text-slate-400 hover:border-border-base hover:bg-slate-900 hover:text-slate-100",
                   )}
                 >
-                  <span className="text-base">{item.icon}</span>
+                  <Icon className="h-4 w-4" />
                   <span>{item.label}</span>
-                  {isActive && (
-                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-blue-400" />
-                  )}
+                  <span className="terminal-label text-[10px] text-slate-500 group-hover:text-slate-300">
+                    {item.code}
+                  </span>
                 </Link>
               );
             })}
           </nav>
 
-          {/* User area */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <p className="terminal-label text-[10px] font-semibold uppercase text-slate-500">ADMIRAL</p>
+              <p className="max-w-28 truncate text-sm text-slate-200">{userName}</p>
+            </div>
             {avatarUrl ? (
-              <img src={avatarUrl} alt={userName} className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-600" />
+              <img src={avatarUrl} alt={userName} className="h-9 w-9 rounded-md object-cover ring-1 ring-border-base" />
             ) : (
-              <span className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center text-sm font-bold text-blue-400 ring-1 ring-blue-500/30">
+              <span className="grid h-9 w-9 place-items-center rounded-md border border-primary/35 bg-primary/10 text-sm font-bold text-primary">
                 {userName.charAt(0).toUpperCase()}
               </span>
             )}
-            <span className="hidden sm:inline text-sm text-slate-400">{userName}</span>
             <Link
               href="/logout"
               prefetch={false}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent text-slate-500 transition-colors hover:border-danger/45 hover:bg-danger/10 hover:text-red-200"
+              aria-label="退出"
+              title="退出"
             >
-              退出
+              <LogOut className="h-4 w-4" />
             </Link>
           </div>
         </div>
 
-        {/* Mobile nav */}
-        <div className="md:hidden flex border-t border-slate-700/30 overflow-x-auto">
+        <nav className="flex gap-1 overflow-x-auto border-t border-border-base/55 px-3 py-2 lg:hidden">
           {navItems.map((item) => {
-            const isActive = pathname.startsWith(item.href);
+            const Icon = item.icon;
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
-                href={navHref(item.href)}
-                className={cx(
-                  "flex-shrink-0 flex items-center gap-1 px-4 py-2.5 text-xs font-medium border-b-2 transition-all",
+                href={navHref(item.href, item.carriesActivity)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors",
                   isActive
-                    ? "text-blue-400 border-blue-400"
-                    : "text-slate-500 border-transparent",
+                    ? "border-primary/50 bg-primary/12 text-sky-100"
+                    : "border-transparent text-slate-400",
                 )}
               >
-                <span>{item.icon}</span>
+                <Icon className="h-3.5 w-3.5" />
                 <span>{item.label}</span>
               </Link>
             );
           })}
-        </div>
+        </nav>
       </header>
 
-      {/* Main */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <main className="mx-auto min-h-[calc(100vh-9rem)] w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        {children}
+      </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800 py-4 text-center text-xs text-slate-600">
-        KanColle Hub · 舰队Collection 亲友群协同工具
+      <footer className="border-t border-border-base/60 bg-slate-950/70 py-4 text-center terminal-label text-[11px] text-slate-600">
+        KANCOLLE HUB / FLEET OPERATIONS CONSOLE
       </footer>
     </div>
   );

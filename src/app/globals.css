@@ -3,12 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --background: 222 47% 6%;
-  --foreground: 210 20% 95%;
-  --border: 217 33% 17%;
-  --card: 217 33% 12%;
-  --accent: 213 94% 68%;
-  --muted: 215 25% 27%;
+  --color-bg-base: 222 47% 5%;
+  --color-bg-panel: 218 32% 10%;
+  --color-bg-panel-subtle: 216 28% 13%;
+  --color-border-base: 215 24% 22%;
+  --color-border-strong: 199 72% 45%;
+  --color-text-main: 210 20% 95%;
+  --color-text-muted: 215 18% 66%;
+  --color-primary: 198 93% 60%;
+  --color-success: 151 72% 42%;
+  --color-warning: 38 92% 55%;
+  --color-danger: 0 72% 58%;
+
+  --background: var(--color-bg-base);
+  --foreground: var(--color-text-main);
+  --border: var(--color-border-base);
+  --card: var(--color-bg-panel);
+  --accent: var(--color-primary);
+  --muted: var(--color-text-muted);
 }
 
 * {
@@ -17,7 +29,11 @@
 
 body {
   min-height: 100vh;
-  background: linear-gradient(180deg, hsl(222, 47%, 4%) 0%, hsl(222, 47%, 6%) 40%, hsl(222, 30%, 10%) 100%);
+  background:
+    linear-gradient(rgba(56, 189, 248, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(222, 47%, 4%) 0%, hsl(222, 47%, 6%) 45%, hsl(220, 30%, 9%) 100%);
+  background-size: 40px 40px, 40px 40px, auto;
   color: hsl(var(--foreground));
   font-family: "Inter", "Noto Sans SC", system-ui, sans-serif;
 }
@@ -47,4 +63,21 @@ a {
 ::selection {
   background: hsl(var(--accent) / 0.3);
   color: #fff;
+}
+
+@layer components {
+  .surface-panel {
+    border: 1px solid hsl(var(--color-border-base) / 0.8);
+    background: hsl(var(--color-bg-panel) / 0.92);
+  }
+
+  .surface-panel-subtle {
+    border: 1px solid hsl(var(--color-border-base) / 0.65);
+    background: hsl(var(--color-bg-panel-subtle) / 0.86);
+  }
+
+  .terminal-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    letter-spacing: 0;
+  }
 }

@@ -8,20 +8,22 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  name           String          @unique
-  pinCode        String
-  avatarUrl      String?
-  backgroundUrl  String?
-  shipData       String?
-  food           Int             @default(0)
-  routineRecords RoutineRecord[]
-  strategyPosts  StrategyPost[]
-  lockPlans      LockPlan[]
-  dailyCheckIns  DailyCheckIn[]
-  gameScores     GameScore[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                    String          @id @default(cuid())
+  name                  String          @unique
+  pinCode               String
+  role                  String          @default("member")
+  avatarUrl             String?
+  backgroundUrl         String?
+  shipData              String?
+  lastShipDataUpdatedAt DateTime?
+  food                  Int             @default(0)
+  routineRecords        RoutineRecord[]
+  strategyPosts         StrategyPost[]
+  lockPlans             LockPlan[]
+  dailyCheckIns         DailyCheckIn[]
+  gameScores            GameScore[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 }
 
 model Activity {
@@ -29,6 +31,7 @@ model Activity {
   name           String          @unique
   description    String?
   isActive       Boolean         @default(true)
+  status         String          @default("active")
   sortOrder      Int             @default(0)
   routineRecords RoutineRecord[]
   strategyPosts  StrategyPost[]
@@ -133,8 +136,8 @@ model LockPlan {
 model GameScore {
   id        String   @id @default(cuid())
   userId    String
-  gameType  String   // "dino" | "survivor" | "invaders"
-  score     Int      // 存活秒数
+  gameType  String // "dino" | "survivor" | "invaders"
+  score     Int // 存活秒数
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

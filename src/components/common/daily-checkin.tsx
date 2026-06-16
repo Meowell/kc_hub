@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card } from "@/components/ui/card";
+import { Utensils } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CheckInStatus {
@@ -61,11 +61,12 @@ export function DailyCheckIn({ initialFood }: { initialFood: number }) {
   const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6;
 
   return (
-    <Card className="border-l-4 border-l-amber-500">
+    <div className="border-l-4 border-l-warning pl-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-slate-400 flex items-center gap-1.5">
-            <span className="text-lg">🍙</span> 战斗粮食
+            <Utensils className="h-4 w-4 text-warning" />
+            战斗粮食
           </p>
           <p className="mt-2 text-3xl font-bold text-white tabular-nums">
             {loading ? "..." : status.totalFood}
@@ -81,11 +82,10 @@ export function DailyCheckIn({ initialFood }: { initialFood: number }) {
           onClick={handleCheckIn}
           disabled={status.checkedIn || checkingIn || loading}
           className={cn(
-            "px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200",
-            "shadow-lg active:scale-95",
+            "rounded-md border px-5 py-2.5 text-sm font-semibold transition-colors",
             status.checkedIn || loading
-              ? "bg-slate-700/50 text-slate-500 cursor-not-allowed"
-              : "bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 hover:border-amber-400/50 hover:-translate-y-0.5",
+              ? "cursor-not-allowed border-border-base bg-slate-800/60 text-slate-500"
+              : "border-warning/40 bg-warning/15 text-amber-200 hover:bg-warning/25 hover:border-warning/60",
           )}
         >
           {checkingIn ? (
@@ -97,7 +97,7 @@ export function DailyCheckIn({ initialFood }: { initialFood: number }) {
             "已签到"
           ) : (
             <span className="flex items-center gap-1.5">
-              🍙 签到
+              签到
               <span className="text-xs opacity-70">
                 {isWeekend ? "5~6" : "2~3"}
               </span>
@@ -109,6 +109,6 @@ export function DailyCheckIn({ initialFood }: { initialFood: number }) {
       {error && (
         <p className="mt-3 text-xs text-red-400">{error}</p>
       )}
-    </Card>
+    </div>
   );
 }

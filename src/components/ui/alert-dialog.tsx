@@ -15,9 +15,9 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
   if (!open) return null;
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={() => onOpenChange(false)} />
+      <div className="fixed inset-0 z-[60] bg-black/70" onClick={() => onOpenChange(false)} />
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-        <div className="relative z-[60] w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl shadow-black/40" onClick={(e) => e.stopPropagation()}>
+        <div className="surface-panel relative z-[60] w-full max-w-md rounded-md p-6 shadow-2xl shadow-black/40" onClick={(e) => e.stopPropagation()}>
           {children}
         </div>
       </div>
@@ -29,10 +29,10 @@ export function AlertDialogHeader({ className, children, ...props }: React.HTMLA
   return <div className={cn("mb-4", className)} {...props}>{children}</div>;
 }
 export function AlertDialogTitle({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn("text-lg font-semibold text-white", className)} {...props}>{children}</h2>;
+  return <h2 className={cn("terminal-label text-base font-semibold uppercase text-white", className)} {...props}>{children}</h2>;
 }
 export function AlertDialogDescription({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("mt-1 text-sm text-slate-400", className)} {...props}>{children}</p>;
+  return <p className={cn("mt-2 text-sm leading-6 text-slate-400", className)} {...props}>{children}</p>;
 }
 export function AlertDialogFooter({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("mt-6 flex items-center justify-end gap-3", className)} {...props}>{children}</div>;

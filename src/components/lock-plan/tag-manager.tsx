@@ -44,7 +44,7 @@ export function TagManager({ tags, onAdd, onEdit, onDelete }: TagManagerProps) {
   return (
     <>
       <Card className="flex flex-wrap items-center gap-2 bg-slate-800/40 border-slate-700/50">
-        <span className="text-xs font-semibold text-slate-400 mr-1">🔒 锁船标签</span>
+        <span className="terminal-label mr-1 text-xs font-semibold text-slate-400">LOCK TAGS / 锁船标签</span>
         {tags.map((tag) => (
           <div key={tag.id} className="group relative">
             <span

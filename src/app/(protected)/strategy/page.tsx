@@ -57,7 +57,8 @@ export default async function StrategyPage({
     <div className="space-y-6">
       <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
       <div>
-        <h1 className="text-2xl font-bold text-white">📝 {scope.label}攻略贴</h1>
+        <p className="terminal-label text-xs font-semibold text-primary">TACTICAL NOTES / 攻略档案</p>
+        <h1 className="mt-2 text-2xl font-bold text-white">{scope.label}攻略档案</h1>
         <p className="mt-1.5 text-sm text-slate-400">
           {scope.isDaily ? "日常打法、路线、配装思路与截图。" : "本期活动独立攻略、路线、配装思路与截图。"}
         </p>

@@ -42,8 +42,8 @@ export async function PUT(request: Request) {
 
   const updated = await prisma.user.update({
     where: { id: user.id },
-    data: { shipData: parsed.data.shipData },
-    select: { shipData: true, updatedAt: true },
+    data: { shipData: parsed.data.shipData, lastShipDataUpdatedAt: new Date() },
+    select: { shipData: true, updatedAt: true, lastShipDataUpdatedAt: true },
   });
 
   return NextResponse.json(updated);
