@@ -32,8 +32,8 @@ export function activityWhere(activityId: string | null) {
 
 export async function getActiveActivities(): Promise<ActivityOption[]> {
   const activities = await prisma.activity.findMany({
-    where: { isActive: true },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+    where: { isActive: true, status: { not: "hidden" } },
+    orderBy: [{ status: "asc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
   });
 
   return activities.map((activity) => ({
@@ -56,7 +56,7 @@ export async function resolveActivityScope(activityIdParam?: string | null): Pro
   }
 
   const activity = await prisma.activity.findFirst({
-    where: { id: activityId, isActive: true },
+    where: { id: activityId, isActive: true, status: { not: "hidden" } },
     select: { id: true, name: true },
   });
 

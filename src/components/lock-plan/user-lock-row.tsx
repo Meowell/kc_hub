@@ -22,12 +22,13 @@ type UserLockRowProps = {
   onRemoveShip: (userId: string, tagId: string, uniqueId: string) => void;
   onReorder?: (userId: string, tagId: string, newAssignments: (LockAssignment | null)[]) => void;
   onDropShip?: (userId: string, targetTagId: string, uniqueId: string, shipId: number, sourceTagId: string, targetIndex: number) => void;
+  readOnly?: boolean;
 };
 
 export function UserLockRow({
   userId, userName, avatarUrl, tags, plans, ships, hasShipData,
   getShipName, getShipType,
-  onCellClick, onRemoveShip, onReorder, onDropShip,
+  onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false,
 }: UserLockRowProps) {
   const planByTagId = new Map(plans.map((p) => [p.tagId, p]));
 
@@ -48,6 +49,11 @@ export function UserLockRow({
               <p className="terminal-label mt-0.5 text-[10px] text-slate-500">{hasShipData ? "DATA READY" : "NO DATA"}</p>
             </div>
           </div>
+          {readOnly && (
+            <Badge variant="secondary" className="mt-3 text-slate-400 bg-slate-700/30 border-slate-600/30">
+              只读
+            </Badge>
+          )}
           {!hasShipData && (
             <Badge variant="secondary" className="mt-3 text-yellow-400 bg-yellow-500/10 border-yellow-500/20">
               未导入存档
@@ -74,6 +80,7 @@ export function UserLockRow({
                 onRemoveShip={(tId, uId) => onRemoveShip(userName, tId, uId)}
                 onReorder={(tId, newAssignments) => onReorder?.(userId, tId, newAssignments)}
                 onDropShip={(tId, uId, sId, srcTag, idx) => onDropShip?.(userId, tId, uId, sId, srcTag, idx)}
+                readOnly={readOnly}
               />
             );
           })}

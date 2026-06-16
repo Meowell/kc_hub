@@ -21,6 +21,7 @@ type TagLockColumnProps = {
   onRemoveShip: (tagId: string, uniqueId: string) => void;
   onReorder?: (tagId: string, newAssignments: (LockAssignment | null)[]) => void;
   onDropShip?: (targetTagId: string, uniqueId: string, shipId: number, sourceTagId: string, targetIndex: number) => void;
+  readOnly?: boolean;
 };
 
 const MAX_COLS = 3;
@@ -54,7 +55,7 @@ function saveSlotCount(tagId: string, count: number) {
 export function TagLockColumn({
   tagId, tagName, tagColorClass, assignedData, ships, userId,
   getShipName, getShipType,
-  onCellClick, onRemoveShip, onReorder, onDropShip,
+  onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false,
 }: TagLockColumnProps) {
   const assignments = useMemo(() => parseAssignments(assignedData), [assignedData]);
 
@@ -121,6 +122,7 @@ export function TagLockColumn({
   // ---- Drag handlers ----
 
   const handleDragStart = useCallback((e: React.DragEvent, assignment: { uniqueId: string; shipId: number }) => {
+    if (readOnly) return;
     const payload: DragPayload = {
       uniqueId: assignment.uniqueId,
       shipId: assignment.shipId,
@@ -129,18 +131,20 @@ export function TagLockColumn({
     };
     e.dataTransfer.setData("application/json", JSON.stringify(payload));
     e.dataTransfer.effectAllowed = "move";
-  }, [tagId, userId]);
+  }, [readOnly, tagId, userId]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (readOnly) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-  }, []);
+  }, [readOnly]);
 
   // Column-level drag enter/leave for whole-column drop target
   const handleColumnDragEnter = useCallback((e: React.DragEvent) => {
+    if (readOnly) return;
     e.preventDefault();
     setColumnDragOver(true);
-  }, []);
+  }, [readOnly]);
 
   const handleColumnDragLeave = useCallback((e: React.DragEvent) => {
     const target = e.currentTarget as HTMLElement;
@@ -220,7 +224,7 @@ export function TagLockColumn({
       onDragOver={handleDragOver}
       onDragEnter={handleColumnDragEnter}
       onDragLeave={handleColumnDragLeave}
-      onDrop={handleColumnDrop}
+      onDrop={readOnly ? undefined : handleColumnDrop}
     >
       <div className={cn("sticky top-0 z-10 mb-2 flex items-center justify-between gap-2 rounded-sm px-2 py-1 shadow-sm", tagColorClass)}>
         <span className="text-sm font-bold text-slate-800 whitespace-nowrap">{tagName}</span>
@@ -271,10 +275,11 @@ export function TagLockColumn({
   getShipType={getShipType}
   onClick={() => onCellClick(tagId, globalIndex)}
   onRemove={() => { if (assignment) onRemoveShip(tagId, assignment.uniqueId); }}
-  onDragStart={assignment ? ((e) => handleDragStart(e, assignment)) : undefined}
-  onDrop={(e) => handleCellDrop(e, globalIndex)}
-  onDragOver={handleDragOver}
+  onDragStart={!readOnly && assignment ? ((e) => handleDragStart(e, assignment)) : undefined}
+  onDrop={readOnly ? undefined : (e) => handleCellDrop(e, globalIndex)}
+  onDragOver={readOnly ? undefined : handleDragOver}
   columnDragOver={columnDragOver}
+  readOnly={readOnly}
 />
               );
             })}

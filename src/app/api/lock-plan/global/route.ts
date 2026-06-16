@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     }),
     prisma.lockPlan.findMany({
       where: { tag: { activityId } },
-      select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true },
+      select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true, version: true },
     }),
   ]);
 
@@ -54,6 +54,7 @@ export async function GET(request: Request) {
         assignedData: p.assignedData,
         note: p.note,
         updatedAt: p.updatedAt.toISOString(),
+        version: p.version,
       })),
     })),
   };

@@ -36,7 +36,7 @@ import { useMasterData } from "@/lib/use-master-data";
 // ============================================================
 
 type TagDTO = { id: string; name: string; colorClass: string; sortOrder: number; isActive: boolean };
-type PlanDTO = { planId: string; tagId: string; assignedData: string; note: string | null; updatedAt: string };
+type PlanDTO = { planId: string; tagId: string; assignedData: string; note: string | null; updatedAt: string; version: number };
 type UserDTO = { userId: string; userName: string; avatarUrl: string | null; hasShipData: boolean; plans: PlanDTO[] };
 
 type GlobalData = { tags: TagDTO[]; users: UserDTO[] };
@@ -47,6 +47,7 @@ type SavedPlanDTO = {
   assignedData: string;
   note: string | null;
   updatedAt: string;
+  version: number;
 };
 type PlanMutation = {
   userId: string;
@@ -79,9 +80,11 @@ type LockPlanGodViewProps = {
   currentUserId: string;
   activityLabel: string;
   isDailyScope: boolean;
+  canManageTags?: boolean;
+  canEditAllPlans?: boolean;
 };
 
-export function LockPlanGodView({ initialTags, initialUsers, activityId, currentUserId, activityLabel, isDailyScope }: LockPlanGodViewProps) {
+export function LockPlanGodView({ initialTags, initialUsers, activityId, currentUserId, activityLabel, isDailyScope, canManageTags = false, canEditAllPlans = false }: LockPlanGodViewProps) {
   const { masterData } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const getShipName = useCallback(
@@ -128,13 +131,13 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
   });
 
   const [planVersionsByUser, setPlanVersionsByUser] = useState<
-    Record<string, Record<string, string>>
+    Record<string, Record<string, number>>
   >(() => {
-    const map: Record<string, Record<string, string>> = {};
+    const map: Record<string, Record<string, number>> = {};
     for (const u of initialUsers) {
       map[u.userId] = {};
       for (const p of u.plans) {
-        map[u.userId][p.tagId] = p.updatedAt;
+        map[u.userId][p.tagId] = p.version;
       }
     }
     return map;
@@ -225,7 +228,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
       const next = structuredClone(prev);
       for (const plan of savedPlans) {
         if (!next[plan.userId]) next[plan.userId] = {};
-        next[plan.userId][plan.tagId] = plan.updatedAt;
+        next[plan.userId][plan.tagId] = plan.version;
       }
       return next;
     });
@@ -245,7 +248,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
           tagId: mutation.tagId,
           assignedData: mutation.assignedData,
           note: mutation.note ?? null,
-          updatedAt: planVersionsByUser[mutation.userId]?.[mutation.tagId],
+          version: planVersionsByUser[mutation.userId]?.[mutation.tagId],
         };
       });
       const single = payloadPlans.length === 1 ? payloadPlans[0] : null;
@@ -853,6 +856,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
       <TagManager
         tags={activeTags}
         deleteImpacts={tagDisableImpacts}
+        readOnly={!canManageTags}
         onAdd={handleAddTag}
         onEdit={handleEditTag}
         onDelete={handleDeleteTag}
@@ -970,6 +974,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                 assignedData: userPlansState[tag.id],
                 note: originalPlan?.note ?? null,
                 updatedAt: originalPlan?.updatedAt ?? "",
+                version: originalPlan?.version ?? 1,
               };
             });
 
@@ -998,6 +1003,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                 onDropShip={(uid, targetTagId, uniqueId, shipId, sourceTagId, targetIndex) => {
                   handleDropShip(uid, targetTagId, uniqueId, shipId, sourceTagId, targetIndex);
                 }}
+                readOnly={!canEditAllPlans && user.userId !== currentUserId}
               />
             </div>
           );

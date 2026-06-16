@@ -2,6 +2,7 @@ import { ActivitySwitcher } from "@/components/common/activity-switcher";
 import { StrategyEditor } from "@/components/strategy/strategy-editor";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
+import { getVisibleContentWhere } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
 
 export default async function StrategyPage({
@@ -17,13 +18,13 @@ export default async function StrategyPage({
 
   const [posts, routineRecords] = await Promise.all([
     prisma.strategyPost.findMany({
-      where: { activityId: scope.activityId },
-      orderBy: [{ phaseName: "asc" }, { createdAt: "desc" }],
+      where: getVisibleContentWhere({ activityId: scope.activityId }),
+      orderBy: [{ isPinned: "desc" }, { phaseName: "asc" }, { createdAt: "desc" }],
       include: { user: { select: { id: true, name: true, avatarUrl: true } } },
     }),
     prisma.routineRecord.findMany({
-      where: { activityId: scope.activityId },
-      orderBy: { createdAt: "desc" },
+      where: getVisibleContentWhere({ activityId: scope.activityId }),
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       take: 50,
       include: { user: { select: { id: true, name: true } } },
     }),

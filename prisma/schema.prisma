@@ -20,6 +20,7 @@ model User {
   routineRecords        RoutineRecord[]
   strategyPosts         StrategyPost[]
   lockPlans             LockPlan[]
+  auditLogs             AuditLog[]
   dailyCheckIns         DailyCheckIn[]
   gameScores            GameScore[]
   createdAt             DateTime        @default(now())
@@ -56,22 +57,26 @@ model DailyCheckIn {
 }
 
 model RoutineRecord {
-  id          String   @id @default(cuid())
-  userId      String
-  activityId  String?
-  seaArea     String
-  missionName String
-  airControl  Int
-  note        String?
-  imageUrl    String?
-  fleetData   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  activityId   String?
+  seaArea      String
+  missionName  String
+  airControl   Int
+  note         String?
+  imageUrl     String?
+  fleetData    String?
+  isDeleted    Boolean  @default(false)
+  isPinned     Boolean  @default(false)
+  copiedFromId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   activity Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([activityId])
+  @@index([activityId, isDeleted, isPinned])
   @@index([userId, seaArea])
   @@index([createdAt])
 }
@@ -86,6 +91,9 @@ model StrategyPost {
   fleetImageUrl   String?
   airbaseImageUrl String?
   routineCardIds  String?
+  isDeleted       Boolean  @default(false)
+  isPinned        Boolean  @default(false)
+  updatedById     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -93,6 +101,7 @@ model StrategyPost {
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([activityId])
+  @@index([activityId, isDeleted, isPinned])
   @@index([userId])
   @@index([phaseName])
   @@index([createdAt])
@@ -122,6 +131,8 @@ model LockPlan {
   assignedData String
   note         String?
   sortOrder    Int      @default(0)
+  version      Int      @default(1)
+  updatedById  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -131,6 +142,25 @@ model LockPlan {
   @@unique([userId, tagId])
   @@index([userId])
   @@index([tagId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  entityType String
+  entityId   String
+  activityId String?
+  beforeJson String?
+  afterJson  String?
+  createdAt  DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([activityId, createdAt])
+  @@index([action, createdAt])
 }
 
 model GameScore {

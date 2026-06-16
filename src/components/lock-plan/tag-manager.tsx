@@ -25,12 +25,13 @@ type TagInfo = { id: string; name: string; colorClass: string; sortOrder: number
 type TagManagerProps = {
   tags: TagInfo[];
   deleteImpacts?: Record<string, { planCount: number; assignedShipCount: number; affectedUserIds: string[] }>;
+  readOnly?: boolean;
   onAdd: (name: string, colorClass: string) => Promise<void>;
   onEdit: (id: string, name: string, colorClass: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 };
 
-export function TagManager({ tags, deleteImpacts = {}, onAdd, onEdit, onDelete }: TagManagerProps) {
+export function TagManager({ tags, deleteImpacts = {}, readOnly = false, onAdd, onEdit, onDelete }: TagManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingTag, setEditingTag] = useState<TagInfo | null>(null);
   const [tagToDisable, setTagToDisable] = useState<TagInfo | null>(null);
@@ -73,27 +74,38 @@ export function TagManager({ tags, deleteImpacts = {}, onAdd, onEdit, onDelete }
           <div key={tag.id} className="group relative">
             <span
               className={cn("inline-flex cursor-pointer items-center rounded-md px-4 py-1.5 text-sm font-bold text-slate-800 hover:ring-2 hover:ring-white/30 transition-all", tag.colorClass)}
-              onClick={() => { setEditingTag(tag); setNewName(tag.name); setNewColor(tag.colorClass); }}
-              title="点击编辑"
+              onClick={() => {
+                if (readOnly) return;
+                setEditingTag(tag);
+                setNewName(tag.name);
+                setNewColor(tag.colorClass);
+              }}
+              title={readOnly ? "只有规划者/管理员可编辑标签" : "点击编辑"}
             >
               {tag.name}
             </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setTagToDisable(tag);
-              }}
-              className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-sm bg-red-500 text-[10px] text-white group-hover:flex"
-              title="停用标签"
-            >
-              ✕
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTagToDisable(tag);
+                }}
+                className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-sm bg-red-500 text-[10px] text-white group-hover:flex"
+                title="停用标签"
+              >
+                ✕
+              </button>
+            )}
           </div>
         ))}
-        <Button variant="ghost" onClick={() => setIsAdding(true)} className="text-xs py-1">
-          + 新增标签
-        </Button>
+        {readOnly ? (
+          <span className="terminal-label text-[11px] text-slate-500">VIEW ONLY / 标签只读</span>
+        ) : (
+          <Button variant="ghost" onClick={() => setIsAdding(true)} className="text-xs py-1">
+            + 新增标签
+          </Button>
+        )}
       </Card>
 
       <Dialog open={isAdding || !!editingTag} onOpenChange={(open) => { if (!open) { setIsAdding(false); setEditingTag(null); } }}>

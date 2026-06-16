@@ -37,6 +37,8 @@ export const routineRecordSchema = z.object({
   note: z.string().max(2000).optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
   fleetData: z.string().max(100000).optional().nullable(),
+  isPinned: z.boolean().optional(),
+  copiedFromId: z.string().optional().nullable(),
 });
 
 export const strategyPostSchema = z.object({
@@ -48,6 +50,7 @@ export const strategyPostSchema = z.object({
   fleetImageUrl: z.string().max(500).optional().nullable(),
   airbaseImageUrl: z.string().max(500).optional().nullable(),
   routineCardIds: z.string().max(500).optional().nullable(),
+  isPinned: z.boolean().optional(),
 });
 
 export const tagColorClasses = [
@@ -101,6 +104,7 @@ export const lockPlanSchema = z.object({
   assignedData: z.string().min(2).max(2 * 1024 * 1024),
   note: z.string().max(2000).optional().nullable(),
   updatedAt: z.string().datetime().optional(),
+  version: z.coerce.number().int().positive().optional(),
 });
 
 export const lockPlanBatchSchema = z.object({

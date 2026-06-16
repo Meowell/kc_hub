@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
+import { canEditOwnedResource, getVisibleContentWhere, isActivityWritable } from "@/lib/collaboration";
 import { normalizeActivityId } from "@/lib/activity-scope";
 import { prisma } from "@/lib/prisma";
 import { routineRecordSchema } from "@/lib/validators";
@@ -14,12 +16,12 @@ export async function GET(request: Request) {
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get("pageSize") ?? "10", 10) || 10));
 
-  const where = { userId: user.id, activityId, ...(seaArea ? { seaArea } : {}) };
+  const where = getVisibleContentWhere({ userId: user.id, activityId, ...(seaArea ? { seaArea } : {}) });
 
   const [records, totalCount] = await Promise.all([
     prisma.routineRecord.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -46,17 +48,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "周回记录字段不完整" }, { status: 400 });
   }
 
+  const activityId = normalizeActivityId(parsed.data.activityId);
+  const activity = activityId
+    ? await prisma.activity.findUnique({ where: { id: activityId }, select: { status: true, isActive: true } })
+    : null;
+  if (activityId && !activity) return NextResponse.json({ error: "活动不存在" }, { status: 404 });
+  if (!isActivityWritable(activity)) {
+    return NextResponse.json({ error: "活动已归档，作业卡只读" }, { status: 403 });
+  }
+
   const record = await prisma.routineRecord.create({
     data: {
       userId: user.id,
-      activityId: normalizeActivityId(parsed.data.activityId),
+      activityId,
       seaArea: parsed.data.seaArea,
       missionName: parsed.data.missionName,
       airControl: parsed.data.airControl,
       note: parsed.data.note || null,
       imageUrl: parsed.data.imageUrl || null,
       fleetData: parsed.data.fleetData || null,
+      isPinned: parsed.data.isPinned ?? false,
+      copiedFromId: parsed.data.copiedFromId || null,
     },
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: "routine.create",
+    entityType: "RoutineRecord",
+    entityId: record.id,
+    activityId: record.activityId,
+    after: record,
   });
 
   return NextResponse.json({ record });
@@ -71,17 +93,51 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "缺少记录 ID" }, { status: 400 });
   }
 
+  const existing = await prisma.routineRecord.findUnique({
+    where: { id: parsed.data.id },
+    include: { activity: { select: { status: true, isActive: true } } },
+  });
+  if (!existing || existing.isDeleted) return NextResponse.json({ error: "作业卡不存在" }, { status: 404 });
+  if (!canEditOwnedResource(user, existing.userId)) {
+    return NextResponse.json({ error: "只能编辑自己的作业卡，或由规划者/管理员编辑" }, { status: 403 });
+  }
+  if (!isActivityWritable(existing.activity)) {
+    return NextResponse.json({ error: "活动已归档，作业卡只读" }, { status: 403 });
+  }
+
+  const targetActivityId = normalizeActivityId(parsed.data.activityId);
+  if (targetActivityId !== existing.activityId) {
+    const targetActivity = targetActivityId
+      ? await prisma.activity.findUnique({ where: { id: targetActivityId }, select: { status: true, isActive: true } })
+      : null;
+    if (targetActivityId && !targetActivity) return NextResponse.json({ error: "活动不存在" }, { status: 404 });
+    if (!isActivityWritable(targetActivity)) {
+      return NextResponse.json({ error: "目标活动已归档，作业卡只读" }, { status: 403 });
+    }
+  }
+
   const record = await prisma.routineRecord.update({
-    where: { id: parsed.data.id, userId: user.id },
+    where: { id: parsed.data.id },
     data: {
       seaArea: parsed.data.seaArea,
-      activityId: normalizeActivityId(parsed.data.activityId),
+      activityId: targetActivityId,
       missionName: parsed.data.missionName,
       airControl: parsed.data.airControl,
       note: parsed.data.note || null,
       imageUrl: parsed.data.imageUrl || null,
       fleetData: parsed.data.fleetData !== undefined ? parsed.data.fleetData : undefined,
+      ...(parsed.data.isPinned !== undefined ? { isPinned: parsed.data.isPinned } : {}),
     },
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: "routine.update",
+    entityType: "RoutineRecord",
+    entityId: record.id,
+    activityId: record.activityId,
+    before: existing,
+    after: record,
   });
 
   return NextResponse.json({ record });
@@ -97,8 +153,31 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "缺少记录 ID" }, { status: 400 });
   }
 
-  await prisma.routineRecord.delete({
-    where: { id, userId: user.id },
+  const existing = await prisma.routineRecord.findUnique({
+    where: { id },
+    include: { activity: { select: { status: true, isActive: true } } },
+  });
+  if (!existing || existing.isDeleted) return NextResponse.json({ error: "作业卡不存在" }, { status: 404 });
+  if (!canEditOwnedResource(user, existing.userId)) {
+    return NextResponse.json({ error: "只能删除自己的作业卡，或由规划者/管理员删除" }, { status: 403 });
+  }
+  if (!isActivityWritable(existing.activity)) {
+    return NextResponse.json({ error: "活动已归档，作业卡只读" }, { status: 403 });
+  }
+
+  const record = await prisma.routineRecord.update({
+    where: { id },
+    data: { isDeleted: true },
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: "routine.delete",
+    entityType: "RoutineRecord",
+    entityId: record.id,
+    activityId: record.activityId,
+    before: existing,
+    after: record,
   });
 
   return NextResponse.json({ ok: true });

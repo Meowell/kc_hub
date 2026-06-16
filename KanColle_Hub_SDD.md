@@ -1990,7 +1990,7 @@ npm run dev
 ## 18.0 当前执行进度
 
 > 更新日期：2026-06-16  
-> 当前实现进度：Phase 4“数据中心升级”已完成第一版，可在本地 preview 查看 `/dashboard` 与 `/strategy`。
+> 当前实现进度：Phase 5“协作可靠性”已完成第一版，核心协作写操作已接入角色权限、审计、软删除、锁船版本号和活动归档只读。
 
 已落地改动：
 
@@ -2049,12 +2049,29 @@ npm run dev
 - `ShipDataCenter` 已显示 `lastShipDataUpdatedAt`，`/api/users/ship-data` GET 会返回对应更新时间。
 - 攻略编辑器新增默认模板、实时 Markdown 预览、插入模板和作业卡搜索插入。
 - 新增攻略 helper：`strategy-helpers.ts`，用于模板默认值和作业卡搜索过滤。
+- 新增协作规则 helper：`collaboration.ts`，集中处理角色权限、软删除查询片段、归档只读和锁船版本冲突判断。
+- 新增审计写入 helper：`audit.ts`，关键 API 写操作统一写入 `AuditLog`。
+- `/api/lock-plan` 已从 `updatedAt` 乐观锁升级为显式 `version` 校验和自增，并记录 `updatedById`。
+- `/api/lock-tags`、`/api/activities` 已限制为 `planner / admin` 管理，并接入归档只读和审计日志。
+- `/api/routine`、`/api/strategy` 已切换为软删除，列表、筛选和攻略作业卡插入入口默认排除 `isDeleted=true`。
+- `/api/users/ship-data` 更新存档时写入审计元信息，不记录完整 noro6 原文。
+- 锁船矩阵前端已接收和提交 `LockPlan.version`，普通成员查看他人锁船行时为只读。
+- seed 用户已分配角色：提督A 为 `admin`，提督B 为 `planner`，提督C 为 `member`。
 
 已落地数据模型地基：
 
 - `User.role String @default("member")`
 - `User.lastShipDataUpdatedAt DateTime?`
 - `Activity.status String @default("active")`
+- `LockPlan.version Int @default(1)`
+- `LockPlan.updatedById String?`
+- `RoutineRecord.isDeleted Boolean @default(false)`
+- `RoutineRecord.isPinned Boolean @default(false)`
+- `RoutineRecord.copiedFromId String?`
+- `StrategyPost.isDeleted Boolean @default(false)`
+- `StrategyPost.isPinned Boolean @default(false)`
+- `StrategyPost.updatedById String?`
+- `AuditLog`
 
 已落地 API 兼容改动：
 
@@ -2062,10 +2079,13 @@ npm run dev
 - `/api/activities` 创建活动时写入 `status = "active"`。
 - `activitySchema` 已允许 `status: active / archived / hidden`，但本轮不改变旧的 `isActive` 查询行为。
 - `/api/lock-tags` 的 `DELETE` 行为改为停用标签：更新 `isActive=false`，并返回 `affectedPlans`。
+- `/api/activities` 的 `DELETE` 行为改为活动归档：写入 `status=archived`、保留 `isActive=true` 以支持只读查看。
+- 活动列表和活动解析已排除 `hidden`，但允许 `archived` 活动被打开查看。
 
 迁移状态：
 
 - 已新增手写 SQLite migration：`20260616133000_ops_console_foundation`。
+- 已新增手写 SQLite migration：`20260616164000_collaboration_reliability`。
 - 当前本机执行 `npx prisma migrate dev` 和 `prisma db push` 会触发 Prisma schema engine 空错误。
 - `npx prisma validate` 与 `npx prisma generate` 均通过，schema 本身有效。
 
@@ -2073,6 +2093,7 @@ npm run dev
 
 - `npm test` 通过，覆盖锁船矩阵摘要、保存状态文案、标签停用影响统计和移动端默认标签选择。
 - `npm test` 通过，新增覆盖 noro6 解析预览统计、未知 ID、导入差异、纯舰船导入合并装备、攻略默认模板和作业卡搜索。
+- `npm test` 通过，新增覆盖角色权限、归档只读、软删除查询片段和锁船版本冲突规则。
 - `npm run lint` 通过，仅保留既有 `<img>` 优化 warning。
 - `npm run build` 通过。
 - 本地 preview 已使用 seed 用户验证 `/home`、`/profile`、活动上下文导航透传、`/lock-plan` 桌面状态栏渲染和移动端锁船面板。
@@ -2182,7 +2203,7 @@ npm run dev
   - 阵容卡搜索插入。（已完成）
   - Markdown 渲染继续禁用 raw HTML。
 
-## 18.5 Phase 5：协作可靠性
+## 18.5 Phase 5：协作可靠性（已完成第一版）
 
 目标：
 
@@ -2196,36 +2217,12 @@ npm run dev
 
 待执行技术清单：
 
-- 新增 `AuditLog` 模型：
-  - `actorId`
-  - `action`
-  - `entityType`
-  - `entityId`
-  - `activityId`
-  - `beforeJson`
-  - `afterJson`
-  - `createdAt`
-- 新增软删除字段：
-  - `RoutineRecord.isDeleted`
-  - `RoutineRecord.isPinned`
-  - `StrategyPost.isDeleted`
-  - `StrategyPost.isPinned`
-- 权限体系落地：
-  - 使用当前已新增的 `User.role`。
-  - 第一阶段角色：`member / planner / admin`。
-  - 公共标签、活动归档、他人内容删除等高风险操作必须校验角色。
-- 锁船并发控制升级：
-  - 为 `LockPlan` 增加 `version Int @default(1)`。
-  - API 更新使用 `where: { id, version }` 或等价事务检查。
-  - 响应返回新 version。
-- 活动状态升级：
-  - `Activity.status` 成为主状态。
-  - `isActive` 逐步降级为兼容字段。
-  - 活动归档后默认只读，管理员/规划者可恢复或继续编辑。
-- 数据导出：
-  - 个人数据导出。
-  - 活动复盘导出。
-  - 后续可扩展为 Markdown / JSON / ZIP。
+- 新增 `AuditLog` 模型，记录 `actorId`、`action`、`entityType`、`entityId`、`activityId`、前后状态 JSON 和创建时间。（已完成）
+- 新增软删除字段：`RoutineRecord.isDeleted/isPinned/copiedFromId`、`StrategyPost.isDeleted/isPinned/updatedById`。（已完成）
+- 权限体系落地：`member / planner / admin`，公共标签、活动归档、他人内容编辑/删除等高风险操作必须校验角色。（已完成第一版）
+- 锁船并发控制升级：`LockPlan.version Int @default(1)`，API 校验版本并在成功保存后递增，响应返回新 version。（已完成）
+- 活动状态升级：`Activity.status` 成为主状态，活动归档后默认只读，`hidden` 不进入活动列表。（已完成归档只读第一版）
+- 数据导出：个人数据导出、活动复盘导出，后续可扩展为 Markdown / JSON / ZIP。（未做，作为后续增强保留）
 
 ---
 

@@ -18,6 +18,7 @@ export async function getCurrentUser() {
     select: {
       id: true,
       name: true,
+      role: true,
       avatarUrl: true,
       backgroundUrl: true,
       shipData: true,

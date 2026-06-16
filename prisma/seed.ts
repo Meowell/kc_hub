@@ -5,9 +5,9 @@ const prisma = new PrismaClient();
 const DAILY_SCOPE_KEY = "daily";
 
 const users = [
-  { name: "提督A", pin: "1001" },
-  { name: "提督B", pin: "1002" },
-  { name: "提督C", pin: "1003" },
+  { name: "提督A", pin: "1001", role: "admin" },
+  { name: "提督B", pin: "1002", role: "planner" },
+  { name: "提督C", pin: "1003", role: "member" },
 ];
 
 const defaultTags = [
@@ -26,8 +26,8 @@ async function main() {
     const pinCode = await bcrypt.hash(user.pin, 10);
     await prisma.user.upsert({
       where: { name: user.name },
-      update: { pinCode },
-      create: { name: user.name, pinCode },
+      update: { pinCode, role: user.role },
+      create: { name: user.name, pinCode, role: user.role },
     });
   }
 

@@ -15,6 +15,7 @@ type ShipCellProps = {
   onDrop?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
   columnDragOver?: boolean;
+  readOnly?: boolean;
 };
 
 function levelColor(level: number): string {
@@ -26,23 +27,24 @@ function levelColor(level: number): string {
 
 export function ShipCell({
   assignment, ship, tagColorClass, getShipName, getShipType, onClick, onRemove,
-  onDragStart, onDrop, onDragOver, columnDragOver,
+  onDragStart, onDrop, onDragOver, columnDragOver, readOnly = false,
 }: ShipCellProps) {
   if (!assignment) {
     return (
       <div
-        onClick={onClick}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
+        onClick={readOnly ? undefined : onClick}
+        onDrop={readOnly ? undefined : onDrop}
+        onDragOver={readOnly ? undefined : onDragOver}
         className={cn(
           "flex min-h-[2.8rem] w-full items-center justify-center gap-1",
           "rounded-lg border-2 border-dashed border-slate-600 bg-slate-800/40",
-          "transition-all hover:border-blue-400 hover:bg-blue-500/10 cursor-pointer",
-          columnDragOver && "border-blue-400/70 bg-blue-500/10",
+          "transition-all",
+          readOnly ? "cursor-not-allowed opacity-60" : "hover:border-blue-400 hover:bg-blue-500/10 cursor-pointer",
+          !readOnly && columnDragOver && "border-blue-400/70 bg-blue-500/10",
         )}
       >
-        <span className="text-lg font-bold text-slate-500">+</span>
-        <span className="text-[10px] text-slate-600">选船</span>
+        <span className="text-lg font-bold text-slate-500">{readOnly ? "-" : "+"}</span>
+        <span className="text-[10px] text-slate-600">{readOnly ? "只读" : "选船"}</span>
       </div>
     );
   }
@@ -52,16 +54,17 @@ export function ShipCell({
 
   return (
     <div
-      draggable={!!onDragStart}
-      onDragStart={onDragStart}
-      onClick={onClick}
-      onDrop={onDrop}
-      onDragOver={onDragOver}
+      draggable={!readOnly && !!onDragStart}
+      onDragStart={readOnly ? undefined : onDragStart}
+      onClick={readOnly ? undefined : onClick}
+      onDrop={readOnly ? undefined : onDrop}
+      onDragOver={readOnly ? undefined : onDragOver}
       className={cn(
         "relative flex items-center rounded-lg border border-slate-600 bg-slate-800 py-1.5 pl-2 pr-10 min-h-[2.8rem]",
         "group transition-all",
-        onDragStart && "cursor-grab active:cursor-grabbing hover:border-slate-500",
-        columnDragOver && "border-blue-400/70",
+        !readOnly && onDragStart && "cursor-grab active:cursor-grabbing hover:border-slate-500",
+        readOnly && "cursor-default",
+        !readOnly && columnDragOver && "border-blue-400/70",
       )}
     >
       {/* Left color tag */}
@@ -76,15 +79,17 @@ export function ShipCell({
       <p className="ml-[33px] truncate text-xs font-semibold text-slate-200 leading-tight">{shipName}</p>
 
       {/* Remove button — top-right corner */}
-      <button
-        type="button"
-        draggable={false}
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-red-500/20 hover:text-red-400 text-[10px] leading-none opacity-0 group-hover:opacity-100 transition-opacity"
-        title="移除"
-      >
-        ✕
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          draggable={false}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-red-500/20 hover:text-red-400 text-[10px] leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+          title="移除"
+        >
+          ✕
+        </button>
+      )}
 
       {/* Ship type — bottom-right corner */}
       <span className="absolute bottom-[6px] w-8 text-left text-[10px] text-slate-400 leading-none"

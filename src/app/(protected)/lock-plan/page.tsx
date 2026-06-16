@@ -2,6 +2,7 @@ import { ActivitySwitcher } from "@/components/common/activity-switcher";
 import { LockPlanGodView } from "@/components/lock-plan/lock-plan-god-view";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
+import { canManageSharedResource } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
 
 export default async function LockPlanGlobalPage({
@@ -26,7 +27,7 @@ export default async function LockPlanGlobalPage({
     }),
     prisma.lockPlan.findMany({
       where: { tag: { activityId: scope.activityId } },
-      select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true },
+      select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true, version: true },
     }),
   ]);
 
@@ -57,6 +58,7 @@ export default async function LockPlanGlobalPage({
         assignedData: p.assignedData,
         note: p.note,
         updatedAt: p.updatedAt.toISOString(),
+        version: p.version,
       })),
     }));
 
@@ -83,6 +85,8 @@ export default async function LockPlanGlobalPage({
         activityId={scope.activityId}
         activityLabel={scope.label}
         isDailyScope={scope.isDaily}
+        canManageTags={canManageSharedResource(currentUser)}
+        canEditAllPlans={canManageSharedResource(currentUser)}
       />
     </div>
   );

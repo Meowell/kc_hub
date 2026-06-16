@@ -3,6 +3,7 @@ import { RoutineRecords } from "@/components/routine/routine-form";
 import { RoutineFilter } from "@/components/routine/routine-filter";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
+import { getVisibleContentWhere } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
@@ -25,7 +26,7 @@ export default async function RoutinePage({
   const uploaderId = searchParams.uploaderId || undefined;
 
   // Build dynamic where clause
-  const conditions: Prisma.RoutineRecordWhereInput[] = [{ activityId: scope.activityId }];
+  const conditions: Prisma.RoutineRecordWhereInput[] = [getVisibleContentWhere({ activityId: scope.activityId })];
   if (search) {
     conditions.push({
       OR: [
@@ -46,13 +47,13 @@ export default async function RoutinePage({
     prisma.routineRecord.count({ where }),
     prisma.routineRecord.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: { user: { select: { id: true, name: true, avatarUrl: true } } },
     }),
-    prisma.routineRecord.groupBy({ by: ["seaArea"], where: { activityId: scope.activityId }, orderBy: { seaArea: "asc" } }),
-    prisma.routineRecord.groupBy({ by: ["userId"], where: { activityId: scope.activityId }, orderBy: { userId: "asc" } }),
+    prisma.routineRecord.groupBy({ by: ["seaArea"], where: getVisibleContentWhere({ activityId: scope.activityId }), orderBy: { seaArea: "asc" } }),
+    prisma.routineRecord.groupBy({ by: ["userId"], where: getVisibleContentWhere({ activityId: scope.activityId }), orderBy: { userId: "asc" } }),
   ]);
 
   // Resolve uploader names

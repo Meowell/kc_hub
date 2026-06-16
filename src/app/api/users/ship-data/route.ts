@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { parseNoro6Data } from "@/lib/noro6";
 import { prisma } from "@/lib/prisma";
 import { shipDataSchema } from "@/lib/validators";
@@ -37,8 +38,9 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "存档内容不能为空，且不能超过 8MB" }, { status: 400 });
   }
 
+  let parsedShipData: ReturnType<typeof parseNoro6Data>;
   try {
-    parseNoro6Data(parsed.data.shipData);
+    parsedShipData = parseNoro6Data(parsed.data.shipData);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "noro6 存档格式错误" },
@@ -46,10 +48,31 @@ export async function PUT(request: Request) {
     );
   }
 
+  const before = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { shipData: true, lastShipDataUpdatedAt: true },
+  });
   const updated = await prisma.user.update({
     where: { id: user.id },
     data: { shipData: parsed.data.shipData, lastShipDataUpdatedAt: new Date() },
     select: { shipData: true, updatedAt: true, lastShipDataUpdatedAt: true },
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: "ship_data.update",
+    entityType: "User",
+    entityId: user.id,
+    before: {
+      shipDataLength: before?.shipData?.length ?? 0,
+      lastShipDataUpdatedAt: before?.lastShipDataUpdatedAt,
+    },
+    after: {
+      shipDataLength: updated.shipData?.length ?? 0,
+      lastShipDataUpdatedAt: updated.lastShipDataUpdatedAt,
+      shipCount: parsedShipData.ships.length,
+      equipmentCount: parsedShipData.items.length,
+    },
   });
 
   return NextResponse.json(updated);
