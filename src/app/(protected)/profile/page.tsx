@@ -7,6 +7,7 @@ import { GameEntryCard } from "@/components/games/game-entry-card";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requireCurrentUser } from "@/lib/auth";
+import { getRoleLabel } from "@/lib/collaboration";
 
 export default async function ProfilePage() {
   const user = await requireCurrentUser();
@@ -25,7 +26,7 @@ export default async function ProfilePage() {
         <Panel
           eyebrow="PROFILE"
           title="提督资料"
-          status={<StatusBadge variant="muted">USER</StatusBadge>}
+          status={<StatusBadge variant="muted">{getRoleLabel(user.role)}</StatusBadge>}
           actions={<UserRound className="h-4 w-4 text-slate-500" />}
         >
           <div className="space-y-5">

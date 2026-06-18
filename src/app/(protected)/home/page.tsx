@@ -7,6 +7,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getActiveActivities, resolveActivityScope, scopedPath } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
+import { getRoleLabel } from "@/lib/collaboration";
 import { buildLockMatrixSummary } from "@/lib/lock-plan-helpers";
 import { prisma } from "@/lib/prisma";
 
@@ -172,7 +173,7 @@ export default async function HomePage({
           </div>
         </Panel>
 
-        <Panel eyebrow="ADMIRAL STATUS" title="个人状态" status={<StatusBadge variant="muted">USER</StatusBadge>}>
+        <Panel eyebrow="ADMIRAL STATUS" title="个人状态" status={<StatusBadge variant="muted">{getRoleLabel(user.role)}</StatusBadge>}>
           <div className="flex items-center gap-3">
             {user.avatarUrl ? (
               <img src={user.avatarUrl} alt={user.name} className="h-12 w-12 rounded-md object-cover ring-1 ring-border-base" />

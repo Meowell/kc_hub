@@ -15,6 +15,10 @@ export function normalizeRole(role?: string | null): UserRole {
   return "member";
 }
 
+export function getRoleLabel(role?: string | null) {
+  return normalizeRole(role).toUpperCase();
+}
+
 export function canManageSharedResource(actor: ActorLike) {
   const role = normalizeRole(actor.role);
   return role === "planner" || role === "admin";
