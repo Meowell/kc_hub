@@ -7,8 +7,12 @@ export async function GET() {
   if (!user) return unauthorizedApiResponse();
 
   const users = await prisma.user.findMany({
-    where: { shipData: { not: "" } },
+    where: {
+      id: { not: user.id },
+      AND: [{ shipData: { not: null } }, { shipData: { not: "" } }],
+    },
     select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
 
   return NextResponse.json(users);
