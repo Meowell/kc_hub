@@ -46,3 +46,15 @@ jobs:
         with:
           name: frontend-emoji-audit
           path: emoji-report.txt
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: |
+            src
+            package.json
+            package-lock.json
+            tsconfig.json
+            next.config.mjs
+            tailwind.config.ts
+            postcss.config.mjs
