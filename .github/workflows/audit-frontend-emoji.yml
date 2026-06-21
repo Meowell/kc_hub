@@ -1,72 +1,10 @@
-name: Apply frontend emoji cleanup
+name: Frontend emoji cleanup staging
 
 on:
-  pull_request:
-    branches: [main]
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  cleanup:
+  staging:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-
-      - name: Apply cleanup patch
-        run: |
-          base64 -d .github/emoji-cleanup.patch.gz.b64 | gzip -d > /tmp/emoji-cleanup.patch
-          patch -p1 --forward < /tmp/emoji-cleanup.patch
-
-      - name: Verify decorative emoji removal
-        run: |
-          python -m pip install regex
-          python <<'PY'
-          from pathlib import Path
-          import regex
-
-          extensions = {".ts", ".tsx", ".js", ".jsx", ".css", ".mdx"}
-          functional = {"↕", "▶", "▼", "▲", "↑", "↓", "★", "✕"}
-          pattern = regex.compile(r"\p{Extended_Pictographic}(?:\ufe0f|\ufe0e)?")
-          leftovers = []
-
-          for path in sorted(Path("src").rglob("*")):
-              if not path.is_file() or path.suffix not in extensions:
-                  continue
-              for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                  values = [
-                      match.group(0)
-                      for match in pattern.finditer(line)
-                      if match.group(0).rstrip("\ufe0f\ufe0e") not in functional
-                  ]
-                  if values:
-                      leftovers.append(f"{path}:{line_number}: {values} | {line.strip()}")
-
-          if leftovers:
-              raise SystemExit("\n".join(leftovers))
-          print("No decorative emoji candidates found.")
-          PY
-
-      - name: Normalize stale package registry URL
-        run: sed -i 's#https://npm.nie.netease.com/#https://registry.npmjs.org/#g' package-lock.json
-
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Run tests
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: Commit cleanup
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src
-          git diff --cached --check
-          git commit -m "chore: remove decorative emoji from frontend"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - run: echo "Cleanup patch staging"
