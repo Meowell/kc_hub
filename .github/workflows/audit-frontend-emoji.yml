@@ -1,0 +1,43 @@
+name: Audit frontend emoji
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install scanner dependency
+        run: python -m pip install regex
+      - name: List decorative emoji candidates
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import regex
+
+          extensions = {".ts", ".tsx", ".js", ".jsx", ".css", ".mdx"}
+          functional = {"↕", "▶", "▼", "↑", "↓", "★", "✕"}
+          pattern = regex.compile(r"\p{Extended_Pictographic}(?:\ufe0f|\ufe0e)?")
+          count = 0
+
+          for path in sorted(Path("src").rglob("*")):
+              if not path.is_file() or path.suffix not in extensions:
+                  continue
+              for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  candidates = []
+                  for match in pattern.finditer(line):
+                      value = match.group(0)
+                      if value.rstrip("\ufe0f\ufe0e") not in functional:
+                          candidates.append(value)
+                  if candidates:
+                      rendered = " ".join(repr(value) for value in candidates)
+                      print(f"{path}:{line_number}: {rendered} | {line.strip()}")
+                      count += len(candidates)
+
+          print(f"TOTAL_DECORATIVE_EMOJI_CANDIDATES={count}")
+          PY
