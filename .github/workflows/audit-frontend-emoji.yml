@@ -16,12 +16,12 @@ jobs:
         run: python -m pip install regex
       - name: List decorative emoji candidates
         run: |
-          python <<'PY'
+          python <<'PY' | tee emoji-report.txt
           from pathlib import Path
           import regex
 
           extensions = {".ts", ".tsx", ".js", ".jsx", ".css", ".mdx"}
-          functional = {"↕", "▶", "▼", "↑", "↓", "★", "✕"}
+          functional = {"↕", "▶", "▼", "▲", "↑", "↓", "★", "✕"}
           pattern = regex.compile(r"\p{Extended_Pictographic}(?:\ufe0f|\ufe0e)?")
           count = 0
 
@@ -41,3 +41,8 @@ jobs:
 
           print(f"TOTAL_DECORATIVE_EMOJI_CANDIDATES={count}")
           PY
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-emoji-audit
+          path: emoji-report.txt
