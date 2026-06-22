@@ -43,7 +43,6 @@ export function LoginForm() {
       <div className="text-center mb-8">
         <div className="text-5xl mb-4">⚓</div>
         <h1 className="text-2xl font-bold text-white tracking-tight">KanColle Hub</h1>
-        <p className="mt-2 text-sm text-slate-400">只给几个人用的一站式工具吧大概</p>
       </div>
 
       {/* Form card */}
