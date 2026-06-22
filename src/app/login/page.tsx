@@ -7,7 +7,7 @@ export default function LoginPage() {
         <LoginForm />
       </div>
       <footer className="text-center text-xs text-slate-500">
-        <a href="https://www.miit.gov.cn/" className="transition-colors hover:text-slate-300">
+        <a href="https://beian.miit.gov.cn/" className="transition-colors hover:text-slate-300">
           粤ICP备2026072242号
         </a>
       </footer>
