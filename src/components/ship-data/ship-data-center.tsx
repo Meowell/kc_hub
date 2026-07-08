@@ -2,6 +2,12 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -102,6 +108,7 @@ export function ShipDataCenter({
   const [isSaving, setIsSaving] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [selectedLockTagId, setSelectedLockTagId] = useState<string>("all");
+  const [announcementOpen, setAnnouncementOpen] = useState(false);
   const canEditCurrentView = viewerId === null;
 
   async function switchViewer(uid: string | null) {
@@ -645,6 +652,24 @@ export function ShipDataCenter({
               <p className="text-base font-bold text-white">{activityOverview.title}</p>
               <p className="mt-1 text-xs text-slate-500">{activityOverview.subtitle ?? currentActivityName}</p>
             </div>
+            {activityOverview.announcements.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setAnnouncementOpen(true)}
+                className="flex w-full items-start justify-between gap-3 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-left transition-colors hover:border-primary/60 hover:bg-primary/15"
+              >
+                <span className="min-w-0">
+                  <span className="terminal-label block text-[10px] text-primary">NOTICE</span>
+                  <span className="mt-1 block truncate text-sm font-semibold text-sky-100">作战公告</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                    {activityOverview.announcements[0].title}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-sm border border-primary/35 bg-slate-950/35 px-2 py-0.5 text-xs font-semibold text-sky-100">
+                  {activityOverview.announcements.length} 条
+                </span>
+              </button>
+            )}
             <div className="grid grid-cols-2 gap-2 text-xs">
               {activityOverview.period && (
                 <div className="rounded-sm border border-slate-700/60 bg-slate-950/25 p-2">
@@ -979,6 +1004,36 @@ export function ShipDataCenter({
           )}
         </div>
       </div>
+      <Dialog open={announcementOpen} onOpenChange={setAnnouncementOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>作战公告</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] space-y-3 overflow-auto pr-1">
+            {activityOverview.announcements.map((announcement, index) => (
+              <article
+                key={`${announcement.number ?? index}-${announcement.title}`}
+                className="rounded-md border border-slate-700/70 bg-slate-950/35 p-3"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="terminal-label shrink-0 rounded-sm border border-primary/35 bg-primary/10 px-2 py-1 text-xs text-sky-100">
+                    {announcement.number ?? String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-white">{announcement.title}</h3>
+                    {announcement.tag && (
+                      <p className="terminal-label mt-1 text-[10px] text-primary">{announcement.tag}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+                  {announcement.body}
+                </div>
+              </article>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

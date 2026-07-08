@@ -13,6 +13,13 @@ export type ActivityOverviewReward = {
   note?: string;
 };
 
+export type ActivityOverviewAnnouncement = {
+  number?: string;
+  title: string;
+  body: string;
+  tag?: string;
+};
+
 export type ActivityOverview = {
   title: string;
   subtitle?: string;
@@ -23,6 +30,7 @@ export type ActivityOverview = {
   rearOperation?: string;
   maps: ActivityOverviewMap[];
   rewards: ActivityOverviewReward[];
+  announcements: ActivityOverviewAnnouncement[];
   notes: string[];
   updatedAt?: string;
 };
@@ -65,6 +73,23 @@ function normalizeReward(input: unknown): ActivityOverviewReward | null {
   };
 }
 
+function normalizeAnnouncement(input: unknown): ActivityOverviewAnnouncement | null {
+  if (!input || typeof input !== "object") return null;
+  const record = input as Record<string, unknown>;
+  const title = cleanText(record.title);
+  const body = Array.isArray(record.body)
+    ? record.body.map(cleanText).filter((value): value is string => !!value).join("\n")
+    : cleanText(record.body);
+  if (!body) return null;
+
+  return {
+    number: cleanText(record.number),
+    title: title ?? "活动公告",
+    body,
+    tag: cleanText(record.tag),
+  };
+}
+
 export function normalizeActivityOverview(input: unknown, fallbackTitle: string): ActivityOverview {
   const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
   return {
@@ -77,6 +102,9 @@ export function normalizeActivityOverview(input: unknown, fallbackTitle: string)
     rearOperation: cleanText(record.rearOperation),
     maps: Array.isArray(record.maps) ? record.maps.map(normalizeMap).filter((value): value is ActivityOverviewMap => !!value) : [],
     rewards: Array.isArray(record.rewards) ? record.rewards.map(normalizeReward).filter((value): value is ActivityOverviewReward => !!value) : [],
+    announcements: Array.isArray(record.announcements)
+      ? record.announcements.map(normalizeAnnouncement).filter((value): value is ActivityOverviewAnnouncement => !!value)
+      : [],
     notes: Array.isArray(record.notes) ? record.notes.map(cleanText).filter((value): value is string => !!value) : [],
     updatedAt: cleanText(record.updatedAt),
   };
