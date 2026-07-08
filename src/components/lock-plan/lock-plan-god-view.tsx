@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { BonusManager } from "@/components/lock-plan/bonus-manager";
 import { ConflictAlertDialog } from "@/components/lock-plan/conflict-alert-dialog";
 import { ShipPickerModal, type ShipLockInfo } from "@/components/lock-plan/ship-picker-modal";
 import { TagManager } from "@/components/lock-plan/tag-manager";
@@ -27,6 +28,10 @@ import {
   type LockAssignment,
   type LockSaveStatus,
 } from "@/lib/lock-plan-helpers";
+import {
+  getBonusGroupsForTag,
+  type ActivityBonusConfig,
+} from "@/lib/activity-bonus";
 import { createMasterLookup, getShipNameFromLookup, getShipTypeFromLookup } from "@/lib/master-data";
 import { deriveShipStock, type ShipStock } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
@@ -80,11 +85,12 @@ type LockPlanGodViewProps = {
   currentUserId: string;
   activityLabel: string;
   isDailyScope: boolean;
+  initialBonusConfig: ActivityBonusConfig;
   canManageTags?: boolean;
   canEditAllPlans?: boolean;
 };
 
-export function LockPlanGodView({ initialTags, initialUsers, activityId, currentUserId, activityLabel, isDailyScope, canManageTags = false, canEditAllPlans = false }: LockPlanGodViewProps) {
+export function LockPlanGodView({ initialTags, initialUsers, activityId, currentUserId, activityLabel, isDailyScope, initialBonusConfig, canManageTags = false, canEditAllPlans = false }: LockPlanGodViewProps) {
   const { masterData } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const getShipName = useCallback(
@@ -99,9 +105,14 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
     (shipId: number) => String(masterLookup.shipTypeById.get(shipId) ?? ""),
     [masterLookup],
   );
+  const getShipOriginalId = useCallback(
+    (shipId: number) => masterLookup.origByShipId.get(shipId) ?? shipId,
+    [masterLookup],
+  );
 
   // ---- Tag state (optimistic) ----
   const [tags, setTags] = useState<TagDTO[]>(initialTags);
+  const [bonusConfig, setBonusConfig] = useState<ActivityBonusConfig>(initialBonusConfig);
 
   // ---- Plans state: userId -> tagId -> assignedData ----
   const [plansByUser, setPlansByUser] = useState<
@@ -691,6 +702,13 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
   }, [initialUsers]);
 
   const activeTags = useMemo(() => tags.filter((t) => t.isActive), [tags]);
+  const bonusGroupsByTagId = useMemo(
+    () =>
+      Object.fromEntries(
+        activeTags.map((tag) => [tag.id, getBonusGroupsForTag(bonusConfig, tag)]),
+      ),
+    [activeTags, bonusConfig],
+  );
   const currentUser = initialUsers.find((user) => user.userId === currentUserId) ?? initialUsers[0];
   const matrixSummary = useMemo(
     () =>
@@ -745,6 +763,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
   const selectedMobileAssignments = selectedMobileTag
     ? parseAssignments(currentUserPlans[selectedMobileTag.id] ?? "[]")
     : [];
+  const selectedMobileBonusGroups = selectedMobileTag ? bonusGroupsByTagId[selectedMobileTag.id] ?? [] : [];
   const selectedMobileShips = useMemo(
     () => currentUser ? shipsByUser[currentUser.userId] ?? [] : [],
     [currentUser, shipsByUser],
@@ -862,6 +881,15 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
         onDelete={handleDeleteTag}
       />
 
+      <BonusManager
+        activityId={activityId}
+        tags={activeTags}
+        config={bonusConfig}
+        canManage={canManageTags}
+        getShipName={getShipName}
+        onConfigChange={setBonusConfig}
+      />
+
       {/* Section 3a: Mobile current-user flow */}
       {currentUser && (
         <Panel
@@ -935,9 +963,12 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                         })}
                         className="flex min-h-14 w-full items-center justify-between gap-3 border border-border-base bg-slate-950/35 px-3 text-left"
                       >
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-semibold text-slate-100">{getShipName(assignment.shipId)}</span>
-                          <span className="terminal-label mt-1 block text-[11px] text-slate-500">Lv.{ship?.level ?? "?"} / {getShipType(assignment.shipId)}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-slate-100">{getShipName(assignment.shipId)}</span>
+                          <span className="terminal-label mt-1 block text-[11px] text-slate-500">
+                            Lv.{ship?.level ?? "?"} / {getShipType(assignment.shipId)}
+                            {selectedMobileBonusGroups.length > 0 ? ` / ${selectedMobileBonusGroups.length} bonus groups` : ""}
+                          </span>
                         </span>
                         <span className="text-xs text-primary">操作</span>
                       </button>
@@ -991,6 +1022,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                 hasShipData={!!user.shipDataRaw?.trim()}
                 getShipName={getShipName}
                 getShipType={getShipType}
+                bonusGroupsByTagId={bonusGroupsByTagId}
                 onCellClick={(_, tagId, cellIndex) => {
                   openPicker(user.userId, tagId, cellIndex);
                 }}
@@ -1016,9 +1048,11 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
         onOpenChange={setPickerOpen}
         ships={pickerUserId ? shipsByUser[pickerUserId] ?? [] : []}
         shipLocks={pickerUserId ? getShipLockMap(pickerUserId) : new Map()}
+        bonusGroups={pickerTagId ? bonusGroupsByTagId[pickerTagId] ?? [] : []}
         getShipName={getShipName}
         getShipType={getShipType}
         getShipTypeId={getShipTypeId}
+        getShipOriginalId={getShipOriginalId}
         onSelectShip={handleSelectShip}
       />
 

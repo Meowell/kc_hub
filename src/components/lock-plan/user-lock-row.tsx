@@ -2,6 +2,7 @@
 
 import { type ShipStock } from "@/lib/noro6";
 import { type LockAssignment } from "@/lib/lock-plan-helpers";
+import { type ActivityBonusGroup } from "@/lib/activity-bonus";
 import { TagLockColumn } from "@/components/lock-plan/tag-lock-column";
 import { Badge } from "@/components/ui/badge";
 
@@ -18,6 +19,7 @@ type UserLockRowProps = {
   hasShipData: boolean;
   getShipName: (shipId: number) => string;
   getShipType: (shipId: number) => string;
+  bonusGroupsByTagId?: Record<string, ActivityBonusGroup[]>;
   onCellClick: (userId: string, tagId: string, rowIndex: number) => void;
   onRemoveShip: (userId: string, tagId: string, uniqueId: string) => void;
   onReorder?: (userId: string, tagId: string, newAssignments: (LockAssignment | null)[]) => void;
@@ -27,7 +29,7 @@ type UserLockRowProps = {
 
 export function UserLockRow({
   userId, userName, avatarUrl, tags, plans, ships, hasShipData,
-  getShipName, getShipType,
+  getShipName, getShipType, bonusGroupsByTagId = {},
   onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false,
 }: UserLockRowProps) {
   const planByTagId = new Map(plans.map((p) => [p.tagId, p]));
@@ -76,6 +78,7 @@ export function UserLockRow({
                 userId={userId}
                 getShipName={getShipName}
                 getShipType={getShipType}
+                bonusGroups={bonusGroupsByTagId[tag.id] ?? []}
                 onCellClick={(tId, rowIdx) => onCellClick(userName, tId, rowIdx)}
                 onRemoveShip={(tId, uId) => onRemoveShip(userName, tId, uId)}
                 onReorder={(tId, newAssignments) => onReorder?.(userId, tId, newAssignments)}

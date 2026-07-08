@@ -1,9 +1,22 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { BadgePercent } from "lucide-react";
 
+import { BonusGroupDetails } from "@/components/lock-plan/bonus-group-details";
 import { ShipCell } from "@/components/lock-plan/ship-cell";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  summarizeBonusGroupNames,
+  summarizeBonusMultipliers,
+  type ActivityBonusGroup,
+} from "@/lib/activity-bonus";
 import { parseAssignments, type LockAssignment } from "@/lib/lock-plan-helpers";
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
@@ -17,6 +30,7 @@ type TagLockColumnProps = {
   userId: string;
   getShipName: (shipId: number) => string;
   getShipType: (shipId: number) => string;
+  bonusGroups?: ActivityBonusGroup[];
   onCellClick: (tagId: string, rowIndex: number) => void;
   onRemoveShip: (tagId: string, uniqueId: string) => void;
   onReorder?: (tagId: string, newAssignments: (LockAssignment | null)[]) => void;
@@ -54,7 +68,7 @@ function saveSlotCount(tagId: string, count: number) {
 
 export function TagLockColumn({
   tagId, tagName, tagColorClass, assignedData, ships, userId,
-  getShipName, getShipType,
+  getShipName, getShipType, bonusGroups = [],
   onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false,
 }: TagLockColumnProps) {
   const assignments = useMemo(() => parseAssignments(assignedData), [assignedData]);
@@ -99,6 +113,8 @@ export function TagLockColumn({
 
   // Column-level drag-over highlight (not per-cell, to avoid re-renders during drag)
   const [columnDragOver, setColumnDragOver] = useState(false);
+  const [bonusDialogOpen, setBonusDialogOpen] = useState(false);
+  const hasBonusGroups = bonusGroups.length > 0;
 
   const shipByUniqueId = useMemo(() => {
     const map = new Map<string, ShipStock>();
@@ -226,39 +242,55 @@ export function TagLockColumn({
       onDragLeave={handleColumnDragLeave}
       onDrop={readOnly ? undefined : handleColumnDrop}
     >
-      <div className={cn("sticky top-0 z-10 mb-2 flex items-center justify-between gap-2 rounded-sm px-2 py-1 shadow-sm", tagColorClass)}>
-        <span className="text-sm font-bold text-slate-800 whitespace-nowrap">{tagName}</span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            disabled={visibleCount <= 1}
-            onClick={() => setSlotCount((prev) => Math.max(1, prev - 1))}
-            className={cn(
-              "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-slate-700",
-              visibleCount <= 1
-                ? "opacity-30 cursor-not-allowed"
-                : "hover:bg-black/10",
-            )}
-          >
-            −
-          </button>
-          <Badge variant="accent" className="text-xs px-1 min-w-[2.25rem] justify-center bg-white/60 text-slate-700 border-white/30">
-            {filledCount}/{slotCount}
-          </Badge>
-          <button
-            type="button"
-            disabled={visibleCount >= MAX_SLOTS}
-            onClick={() => setSlotCount((prev) => Math.min(MAX_SLOTS, prev + 1))}
-            className={cn(
-              "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-slate-700",
-              visibleCount >= MAX_SLOTS
-                ? "opacity-30 cursor-not-allowed"
-                : "hover:bg-black/10",
-            )}
-          >
-            +
-          </button>
+      <div className={cn("sticky top-0 z-10 mb-2 rounded-sm px-2 py-1 shadow-sm", tagColorClass)}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-bold text-slate-800 whitespace-nowrap">{tagName}</span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={visibleCount <= 1}
+              onClick={() => setSlotCount((prev) => Math.max(1, prev - 1))}
+              className={cn(
+                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-slate-700",
+                visibleCount <= 1
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-black/10",
+              )}
+            >
+              −
+            </button>
+            <Badge variant="accent" className="text-xs px-1 min-w-[2.25rem] justify-center bg-white/60 text-slate-700 border-white/30">
+              {filledCount}/{slotCount}
+            </Badge>
+            <button
+              type="button"
+              disabled={visibleCount >= MAX_SLOTS}
+              onClick={() => setSlotCount((prev) => Math.min(MAX_SLOTS, prev + 1))}
+              className={cn(
+                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-slate-700",
+                visibleCount >= MAX_SLOTS
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-black/10",
+              )}
+            >
+              +
+            </button>
+          </div>
         </div>
+        {hasBonusGroups && (
+          <button
+            type="button"
+            onClick={() => setBonusDialogOpen(true)}
+            className="mt-1 flex w-full items-center justify-between gap-1 rounded bg-white/55 px-1.5 py-0.5 text-left text-[10px] font-semibold text-slate-700 transition hover:bg-white/75"
+            title="查看贴条倍卡"
+          >
+            <span className="flex min-w-0 items-center gap-1">
+              <BadgePercent className="h-3 w-3 shrink-0" />
+              <span className="truncate">{summarizeBonusGroupNames(bonusGroups)}</span>
+            </span>
+            <span className="shrink-0">{summarizeBonusMultipliers(bonusGroups)}</span>
+          </button>
+        )}
       </div>
       <div className="flex gap-1.5">
         {columns.map((colSlots, colIndex) => (
@@ -286,6 +318,14 @@ export function TagLockColumn({
           </div>
         ))}
       </div>
+      <Dialog open={bonusDialogOpen} onOpenChange={setBonusDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{tagName} 倍卡详情</DialogTitle>
+          </DialogHeader>
+          <BonusGroupDetails groups={bonusGroups} getShipName={getShipName} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

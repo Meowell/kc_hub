@@ -5,6 +5,7 @@ import { LockPlanGodView } from "@/components/lock-plan/lock-plan-god-view";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
+import { readActivityBonusConfig } from "@/lib/activity-bonus-storage";
 import { requireCurrentUser } from "@/lib/auth";
 import { canManageSharedResource } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
@@ -41,7 +42,7 @@ export default async function LockPlanGlobalPage({
 
   const scope = await resolveActivityScope(searchParams.activityId);
 
-  const [tags, users, allPlans] = await Promise.all([
+  const [tags, users, allPlans, bonusConfig] = await Promise.all([
     prisma.lockTag.findMany({
       where: { activityId: scope.activityId, isActive: true },
       orderBy: { sortOrder: "asc" },
@@ -54,6 +55,7 @@ export default async function LockPlanGlobalPage({
       where: { tag: { activityId: scope.activityId } },
       select: { id: true, userId: true, tagId: true, assignedData: true, note: true, updatedAt: true, version: true },
     }),
+    readActivityBonusConfig(scope.activityId),
   ]);
 
   // Build per-user plan map
@@ -110,6 +112,7 @@ export default async function LockPlanGlobalPage({
         activityId={scope.activityId}
         activityLabel={scope.label}
         isDailyScope={scope.isDaily}
+        initialBonusConfig={bonusConfig}
         canManageTags={canManageSharedResource(currentUser)}
         canEditAllPlans={canManageSharedResource(currentUser)}
       />

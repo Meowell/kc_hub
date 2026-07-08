@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState, useDeferredValue } from "react";
+import { BadgePercent } from "lucide-react";
 
+import { BonusGroupDetails } from "@/components/lock-plan/bonus-group-details";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import {
+  getShipBonusMatch,
+  type ActivityBonusGroup,
+  type ShipBonusMatch,
+} from "@/lib/activity-bonus";
 import { shipTypeLabels } from "@/lib/lock-plan-helpers";
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
@@ -26,9 +33,11 @@ type ShipPickerModalProps = {
   onOpenChange: (open: boolean) => void;
   ships: ShipStock[];
   shipLocks: Map<string, ShipLockInfo>; // uniqueId -> { tagColorClass, tagName }
+  bonusGroups?: ActivityBonusGroup[];
   getShipName: (shipId: number) => string;
   getShipType: (shipId: number) => string;
   getShipTypeId: (shipId: number) => string;
+  getShipOriginalId?: (shipId: number) => number;
   onSelectShip: (ship: ShipStock) => void;
 };
 
@@ -44,13 +53,19 @@ export function ShipPickerModal({
   onOpenChange,
   ships,
   shipLocks,
+  bonusGroups = [],
   getShipName,
   getShipType,
   getShipTypeId,
+  getShipOriginalId,
   onSelectShip,
 }: ShipPickerModalProps) {
   const [query, setQuery] = useState("");
   const [shipType, setShipType] = useState("all");
+  const [bonusDetail, setBonusDetail] = useState<{
+    shipName: string;
+    match: ShipBonusMatch;
+  } | null>(null);
   const deferredQuery = useDeferredValue(query);
 
   const filteredShips = useMemo(() => {
@@ -69,7 +84,13 @@ export function ShipPickerModal({
   }, [ships, deferredQuery, shipType, getShipName, getShipTypeId]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) setBonusDetail(null);
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>选择舰娘</DialogTitle>
@@ -120,26 +141,64 @@ export function ShipPickerModal({
           <div className="grid grid-cols-3 gap-2 max-h-[60vh] overflow-auto pr-1">
             {filteredShips.map((ship) => {
               const lock = shipLocks.get(ship.uniqueId);
+              const shipTypeId = Number(getShipTypeId(ship.shipId)) || undefined;
+              const bonusMatch = getShipBonusMatch(
+                bonusGroups,
+                ship.shipId,
+                shipTypeId,
+                getShipOriginalId?.(ship.shipId) ?? ship.shipId,
+              );
+              const shipName = getShipName(ship.shipId);
               return (
-                <button
+                <div
                   key={ship.uniqueId}
-                  type="button"
                   onClick={() => onSelectShip(ship)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectShip(ship);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left transition hover:shadow",
+                    "relative flex min-h-[82px] items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left transition hover:shadow focus:outline-none focus:ring-2 focus:ring-primary/50",
                     lock
                       ? `${lock.tagColorClass} border-transparent`
                       : "bg-white hover:bg-slate-50",
                   )}
                 >
-                  <div className="min-w-0 flex-1">
+                  {bonusMatch.hasAnyBonus && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setBonusDetail({ shipName, match: bonusMatch });
+                      }}
+                      className={cn(
+                        "absolute right-2 top-2 flex max-w-[46%] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                        bonusMatch.hasNamedBonus
+                          ? "bg-red-500/10 text-red-700 ring-1 ring-red-500/20"
+                          : "bg-slate-200/80 text-slate-600",
+                      )}
+                      title="查看舰船倍卡"
+                    >
+                      <BadgePercent className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{bonusMatch.groupLabel}</span>
+                      <span className="shrink-0">{bonusMatch.multiplierLabel}</span>
+                    </button>
+                  )}
+                  <div className="min-w-0 flex-1 pr-4">
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-700">
                       <span className={cn("font-semibold", levelColor(ship.level))}>Lv{ship.level}</span>
                       <span className="text-slate-700">{getShipType(ship.shipId)}</span>
                       <span className="text-slate-700">ID {ship.shipId}</span>
                     </div>
-                    <p className="truncate text-sm font-medium mt-0.5 text-slate-800">
-                      {getShipName(ship.shipId)}
+                    <p className={cn(
+                      "truncate text-sm font-medium mt-0.5 text-slate-800",
+                      bonusMatch.hasNamedBonus && "font-bold text-red-600",
+                    )}>
+                      {shipName}
                     </p>
                     {/* Stats row */}
                     <div className="mt-1 flex gap-1.5 text-[10px] text-slate-500">
@@ -151,15 +210,31 @@ export function ShipPickerModal({
                     </div>
                   </div>
                   {lock && (
-                    <span className="shrink-0 rounded bg-white/60 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                    <span className="absolute bottom-2 right-2 shrink-0 rounded bg-white/60 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
                       {lock.tagName}
                     </span>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
         )}
+        <Dialog
+          open={!!bonusDetail}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setBonusDetail(null);
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{bonusDetail?.shipName ?? ""} 倍卡详情</DialogTitle>
+              <DialogDescription>
+                仅舰种通用命中的倍卡不会触发红名。
+              </DialogDescription>
+            </DialogHeader>
+            <BonusGroupDetails groups={bonusDetail?.match.groups ?? []} getShipName={getShipName} />
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
