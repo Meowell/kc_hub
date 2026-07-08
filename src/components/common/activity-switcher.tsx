@@ -18,9 +18,11 @@ function scopeHref(pathname: string, activityId: string | null) {
 export function ActivitySwitcher({
   activities,
   currentActivityId,
+  showDaily = true,
 }: {
   activities: ActivityOption[];
   currentActivityId: string | null;
+  showDaily?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -59,17 +61,19 @@ export function ActivitySwitcher({
           <span className="terminal-label hidden shrink-0 text-[11px] font-semibold text-slate-500 sm:inline">
             OPERATION
           </span>
-          <Link
-            href={scopeHref(pathname, null)}
-            className={cx(
-              "shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-              currentKey === DAILY_ACTIVITY_ID
-                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                : "border-slate-700/60 bg-slate-900/40 text-slate-400 hover:border-slate-600 hover:text-slate-200",
-            )}
-          >
-            日常
-          </Link>
+          {showDaily && (
+            <Link
+              href={scopeHref(pathname, null)}
+              className={cx(
+                "shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                currentKey === DAILY_ACTIVITY_ID
+                  ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                  : "border-slate-700/60 bg-slate-900/40 text-slate-400 hover:border-slate-600 hover:text-slate-200",
+              )}
+            >
+              日常
+            </Link>
+          )}
           {activities.map((activity) => (
             <Link
               key={activity.id}

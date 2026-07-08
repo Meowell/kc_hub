@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 
-import { DAILY_ACTIVITY_ID, normalizeActivityId } from "@/lib/activity-scope";
+import { normalizeActivityId } from "@/lib/activity-scope";
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { canManageSharedResource, isActivityWritable } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
 import { lockTagSchema } from "@/lib/validators";
 
+function lockTagsRequireActivityResponse() {
+  return NextResponse.json({ error: "锁船标签需要选择活动，日常不支持锁船" }, { status: 400 });
+}
+
 export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const activityId = normalizeActivityId(searchParams.get("activityId"));
+  if (!activityId) return lockTagsRequireActivityResponse();
   const tags = await prisma.lockTag.findMany({
     where: { activityId, isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -33,7 +38,8 @@ export async function POST(request: Request) {
 
   const { name, colorClass, sortOrder } = parsed.data;
   const activityId = normalizeActivityId(parsed.data.activityId);
-  const scopeKey = activityId ?? DAILY_ACTIVITY_ID;
+  if (!activityId) return lockTagsRequireActivityResponse();
+  const scopeKey = activityId;
   const activity = activityId
     ? await prisma.activity.findUnique({ where: { id: activityId }, select: { status: true, isActive: true } })
     : null;
@@ -83,12 +89,14 @@ export async function PATCH(request: Request) {
     include: { activity: { select: { status: true, isActive: true } } },
   });
   if (!existing) return NextResponse.json({ error: "标签不存在" }, { status: 404 });
+  if (!existing.activityId) return lockTagsRequireActivityResponse();
   if (!isActivityWritable(existing.activity)) {
     return NextResponse.json({ error: "活动已归档，锁船标签只读" }, { status: 403 });
   }
   const activityId = parsed.data.activityId === undefined
     ? undefined
     : normalizeActivityId(parsed.data.activityId);
+  if (activityId === null) return lockTagsRequireActivityResponse();
   if (activityId !== undefined && activityId !== existing.activityId) {
     const targetActivity = activityId
       ? await prisma.activity.findUnique({ where: { id: activityId }, select: { status: true, isActive: true } })
@@ -105,7 +113,7 @@ export async function PATCH(request: Request) {
       name,
       colorClass,
       ...(sortOrder !== undefined ? { sortOrder } : {}),
-      ...(activityId !== undefined ? { activityId, scopeKey: activityId ?? DAILY_ACTIVITY_ID } : {}),
+      ...(activityId !== undefined ? { activityId, scopeKey: activityId } : {}),
     },
   });
 

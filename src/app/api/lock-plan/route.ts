@@ -38,11 +38,16 @@ function isUniqueConstraintError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
+function lockPlanRequiresActivityResponse() {
+  return NextResponse.json({ error: "锁船矩阵需要选择活动，日常不支持锁船" }, { status: 400 });
+}
+
 export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const activityId = normalizeActivityId(searchParams.get("activityId"));
+  if (!activityId) return lockPlanRequiresActivityResponse();
   const plans = await prisma.lockPlan.findMany({
     where: { userId: user.id, tag: { activityId } },
     include: { tag: true },
@@ -71,6 +76,7 @@ export async function POST(request: Request) {
     include: { activity: { select: { status: true, isActive: true } } },
   });
   if (!tag) return NextResponse.json({ error: "锁船标签不存在" }, { status: 404 });
+  if (!tag.activityId) return lockPlanRequiresActivityResponse();
   if (!isActivityWritable(tag.activity)) {
     return NextResponse.json({ error: "活动已归档，锁船计划只读" }, { status: 403 });
   }
@@ -125,6 +131,7 @@ export async function PATCH(request: Request) {
   if (!existing) {
     return NextResponse.json({ error: "锁船规划不存在，请刷新页面后再试" }, { status: 404 });
   }
+  if (!existing.tag.activityId) return lockPlanRequiresActivityResponse();
   if (!canEditOwnedResource(user, existing.userId)) {
     return NextResponse.json({ error: "只能编辑自己的锁船计划，或由规划者/管理员编辑全员计划" }, { status: 403 });
   }
@@ -192,6 +199,7 @@ export async function PUT(request: Request) {
   if (tags.length !== tagIds.length) {
     return NextResponse.json({ error: "锁船标签不存在" }, { status: 404 });
   }
+  if (tags.some((tag) => !tag.activityId)) return lockPlanRequiresActivityResponse();
   if (tags.some((tag) => !isActivityWritable(tag.activity))) {
     return NextResponse.json({ error: "活动已归档，锁船计划只读" }, { status: 403 });
   }
@@ -279,6 +287,7 @@ export async function DELETE(request: Request) {
     include: { tag: { include: { activity: { select: { status: true, isActive: true } } } } },
   });
   if (!existing) return NextResponse.json({ error: "锁船规划不存在" }, { status: 404 });
+  if (!existing.tag.activityId) return lockPlanRequiresActivityResponse();
   if (existing.userId !== targetUserId || !canEditOwnedResource(user, existing.userId)) {
     return NextResponse.json({ error: "只能删除自己的锁船计划，或由规划者/管理员删除全员计划" }, { status: 403 });
   }

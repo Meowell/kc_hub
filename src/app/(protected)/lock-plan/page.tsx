@@ -1,5 +1,9 @@
+import { redirect } from "next/navigation";
+
 import { ActivitySwitcher } from "@/components/common/activity-switcher";
 import { LockPlanGodView } from "@/components/lock-plan/lock-plan-god-view";
+import { Panel } from "@/components/ui/panel";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
 import { canManageSharedResource } from "@/lib/collaboration";
@@ -11,10 +15,31 @@ export default async function LockPlanGlobalPage({
   searchParams: { activityId?: string };
 }) {
   const currentUser = await requireCurrentUser();
-  const [activities, scope] = await Promise.all([
-    getActiveActivities(),
-    resolveActivityScope(searchParams.activityId),
-  ]);
+  const activities = await getActiveActivities();
+
+  if (!searchParams.activityId) {
+    const firstActivity = activities[0];
+    if (firstActivity) {
+      redirect(`/lock-plan?activityId=${encodeURIComponent(firstActivity.id)}`);
+    }
+
+    return (
+      <div className="space-y-6">
+        <ActivitySwitcher activities={activities} currentActivityId={null} showDaily={false} />
+        <Panel
+          eyebrow="LOCK MATRIX"
+          title="锁船矩阵"
+          status={<StatusBadge variant="warning">NO ACTIVITY</StatusBadge>}
+        >
+          <p className="text-sm text-slate-400">
+            锁船只属于活动作战。请先建立活动档案，再配置活动锁船标签。
+          </p>
+        </Panel>
+      </div>
+    );
+  }
+
+  const scope = await resolveActivityScope(searchParams.activityId);
 
   const [tags, users, allPlans] = await Promise.all([
     prisma.lockTag.findMany({
@@ -71,7 +96,7 @@ export default async function LockPlanGlobalPage({
 
   return (
     <div className="space-y-6">
-      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
+      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} showDaily={false} />
       <LockPlanGodView
         initialTags={tags.map((t) => ({
           id: t.id,

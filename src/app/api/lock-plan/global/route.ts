@@ -9,6 +9,9 @@ export async function GET(request: Request) {
   if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
   const activityId = normalizeActivityId(searchParams.get("activityId"));
+  if (!activityId) {
+    return NextResponse.json({ error: "锁船矩阵需要选择活动，日常不支持锁船" }, { status: 400 });
+  }
 
   const [tags, users, allPlans] = await Promise.all([
     prisma.lockTag.findMany({
