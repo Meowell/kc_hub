@@ -6,6 +6,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { ActivityOverview } from "@/lib/activity-overview";
 import { createMasterLookup } from "@/lib/master-data";
 import { parseNoro6Data, type Noro6Preview } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
@@ -54,6 +55,13 @@ const statHeaders: { key: SortKey; label: string }[] = [
   { key: "luck", label: "运" },
 ];
 
+type DashboardLockTag = {
+  id: string;
+  name: string;
+  colorClass: string;
+  sortOrder: number;
+};
+
 // ---- Component ----
 
 function formatSyncTime(value: string | null) {
@@ -70,10 +78,16 @@ export function ShipDataCenter({
   initialShipData,
   initialLastShipDataUpdatedAt,
   currentUserName,
+  currentActivityName,
+  lockTags,
+  activityOverview,
 }: {
   initialShipData: string;
   initialLastShipDataUpdatedAt: string | null;
   currentUserName: string;
+  currentActivityName: string;
+  lockTags: DashboardLockTag[];
+  activityOverview: ActivityOverview;
 }) {
   const { masterData } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
@@ -87,6 +101,7 @@ export function ShipDataCenter({
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [selectedLockTagId, setSelectedLockTagId] = useState<string>("all");
   const canEditCurrentView = viewerId === null;
 
   async function switchViewer(uid: string | null) {
@@ -332,6 +347,16 @@ export function ShipDataCenter({
     return equipSortDir === "desc" ? "↓" : "↑";
   }
 
+  const selectedLockTag = useMemo(
+    () => lockTags.find((tag) => tag.id === selectedLockTagId) ?? null,
+    [lockTags, selectedLockTagId],
+  );
+
+  useEffect(() => {
+    if (selectedLockTagId === "all" || lockTags.some((tag) => tag.id === selectedLockTagId)) return;
+    setSelectedLockTagId("all");
+  }, [lockTags, selectedLockTagId]);
+
   async function onPreview(e?: FormEvent<HTMLFormElement>) {
     e?.preventDefault();
     setMessage("");
@@ -557,20 +582,142 @@ export function ShipDataCenter({
           </form>
         </div>
 
-        {/* Placeholder: 锁船标签 */}
-        <div
-          className={`${cardBase} p-4 flex flex-col items-center justify-center text-center min-h-[140px]`}
-        >
-          <span className="text-2xl mb-1">🔒</span>
-          <p className="text-sm font-medium text-slate-400">锁船标签</p>
+        <div className={`${cardBase} flex min-h-[220px] flex-col`}>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-700/50 px-4 py-4">
+            <div className="min-w-0">
+              <p className="terminal-label text-[10px] font-semibold text-primary">LOCK TAGS</p>
+              <h2 className="truncate text-sm font-semibold text-white">锁船标签</h2>
+            </div>
+            <StatusBadge variant={lockTags.length > 0 ? "default" : "muted"}>
+              {lockTags.length} TAGS
+            </StatusBadge>
+          </div>
+          <div className="flex flex-1 flex-col gap-3 p-4">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedLockTagId("all")}
+                className={cn(
+                  "rounded-md border px-3 py-2 text-xs font-semibold transition-colors",
+                  selectedLockTagId === "all"
+                    ? "border-primary/60 bg-primary/15 text-sky-100"
+                    : "border-slate-700/70 bg-slate-950/25 text-slate-400 hover:border-primary/35 hover:text-slate-200",
+                )}
+              >
+                全部贴条
+              </button>
+              {lockTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => setSelectedLockTagId(tag.id)}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-xs font-bold text-slate-900 transition-all hover:ring-2 hover:ring-white/30",
+                    tag.colorClass,
+                    selectedLockTagId === tag.id && "ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900",
+                  )}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+            <div className="mt-auto rounded-md border border-slate-700/60 bg-slate-950/25 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">ACTIVE FILTER</p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                {selectedLockTag ? selectedLockTag.name : "全部贴条"}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Placeholder: 全局攻略 */}
-        <div
-          className={`${cardBase} p-4 flex flex-col items-center justify-center text-center min-h-[140px]`}
-        >
-          <span className="text-2xl mb-1">📝</span>
-          <p className="text-sm font-medium text-slate-400">全局攻略</p>
+        <div className={`${cardBase} flex min-h-[220px] flex-col`}>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-700/50 px-4 py-4">
+            <div className="min-w-0">
+              <p className="terminal-label text-[10px] font-semibold text-primary">EVENT INTEL</p>
+              <h2 className="truncate text-sm font-semibold text-white">活动情报</h2>
+            </div>
+            <StatusBadge variant={activityOverview.maps.length > 0 ? "success" : "warning"}>
+              {activityOverview.status ?? "INFO"}
+            </StatusBadge>
+          </div>
+          <div className="space-y-3 p-4">
+            <div>
+              <p className="text-base font-bold text-white">{activityOverview.title}</p>
+              <p className="mt-1 text-xs text-slate-500">{activityOverview.subtitle ?? currentActivityName}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {activityOverview.period && (
+                <div className="rounded-sm border border-slate-700/60 bg-slate-950/25 p-2">
+                  <p className="terminal-label text-[10px] text-slate-500">PERIOD</p>
+                  <p className="mt-1 text-slate-200">{activityOverview.period}</p>
+                </div>
+              )}
+              {activityOverview.scale && (
+                <div className="rounded-sm border border-slate-700/60 bg-slate-950/25 p-2">
+                  <p className="terminal-label text-[10px] text-slate-500">SCALE</p>
+                  <p className="mt-1 text-slate-200">{activityOverview.scale}</p>
+                </div>
+              )}
+              {activityOverview.frontOperation && (
+                <div className="rounded-sm border border-slate-700/60 bg-slate-950/25 p-2">
+                  <p className="terminal-label text-[10px] text-slate-500">FRONT</p>
+                  <p className="mt-1 text-slate-200">{activityOverview.frontOperation}</p>
+                </div>
+              )}
+              {activityOverview.rearOperation && (
+                <div className="rounded-sm border border-slate-700/60 bg-slate-950/25 p-2">
+                  <p className="terminal-label text-[10px] text-slate-500">REAR</p>
+                  <p className="mt-1 text-slate-200">{activityOverview.rearOperation}</p>
+                </div>
+              )}
+            </div>
+            {activityOverview.maps.length > 0 && (
+              <div>
+                <p className="terminal-label mb-1.5 text-[10px] text-slate-500">MAPS</p>
+                <div className="space-y-1.5">
+                  {activityOverview.maps.map((map) => (
+                    <div key={map.code} className="rounded-sm border border-slate-700/60 bg-slate-950/25 px-2 py-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-slate-100">
+                            {map.code} / {map.operation}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-slate-500">{map.area}</p>
+                        </div>
+                        {map.phase && <span className="shrink-0 text-[11px] text-sky-200">{map.phase}</span>}
+                      </div>
+                      {map.tags && map.tags.length > 0 && (
+                        <p className="mt-1 truncate text-[11px] text-slate-400">{map.tags.join(" / ")}</p>
+                      )}
+                      {map.note && <p className="mt-1 text-[11px] text-amber-200">{map.note}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {activityOverview.rewards.length > 0 && (
+              <div>
+                <p className="terminal-label mb-1.5 text-[10px] text-slate-500">REWARDS</p>
+                <div className="grid gap-1.5">
+                  {activityOverview.rewards.map((reward) => (
+                    <div key={`${reward.label}-${reward.value}`} className="rounded-sm border border-slate-700/60 bg-slate-950/25 px-2 py-1.5 text-xs">
+                      <span className="text-slate-500">{reward.label}</span>
+                      <span className="ml-2 font-semibold text-slate-100">{reward.value}</span>
+                      {reward.note && <p className="mt-1 text-[11px] text-slate-500">{reward.note}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {activityOverview.notes.length > 0 && (
+              <div className="rounded-sm border border-amber-500/25 bg-amber-500/10 px-2 py-2 text-[11px] text-amber-100">
+                {activityOverview.notes.map((note) => <p key={note}>{note}</p>)}
+              </div>
+            )}
+            {activityOverview.updatedAt && (
+              <p className="terminal-label text-[10px] text-slate-600">UPDATED {activityOverview.updatedAt}</p>
+            )}
+          </div>
         </div>
       </div>
 

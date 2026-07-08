@@ -1,9 +1,24 @@
 import { ShipDataCenter } from "@/components/ship-data/ship-data-center";
 import { UpdateMastersButton } from "@/components/ship-data/update-masters-button";
+import { readActivityOverview } from "@/lib/activity-overview-storage";
 import { requireCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export default async function DashboardPage() {
   const user = await requireCurrentUser();
+  const activity = await prisma.activity.findFirst({
+    where: { isActive: true, status: { not: "hidden" } },
+    orderBy: [{ status: "asc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
+    select: { id: true, name: true },
+  });
+  const lockTags = activity
+    ? await prisma.lockTag.findMany({
+        where: { activityId: activity.id, isActive: true },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, colorClass: true, sortOrder: true },
+      })
+    : [];
+  const activityOverview = await readActivityOverview(activity?.id, activity?.name ?? "未选择活动");
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -22,6 +37,9 @@ export default async function DashboardPage() {
         initialShipData={user.shipData ?? ""}
         initialLastShipDataUpdatedAt={user.lastShipDataUpdatedAt?.toISOString() ?? null}
         currentUserName={user.name}
+        currentActivityName={activity?.name ?? "未选择活动"}
+        lockTags={lockTags}
+        activityOverview={activityOverview}
       />
     </div>
   );
