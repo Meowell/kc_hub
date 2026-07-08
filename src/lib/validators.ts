@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { customLockTagColorPattern, normalizeLockTagColor } from "@/lib/lock-tag-colors";
+
 export const pinSchema = z.string().regex(/^\d{4}$/, "PIN 必须是 4 位数字");
 export const userNameSchema = z.string().trim().min(1, "用户名不能为空").max(30, "用户名不能超过 30 个字符");
 
@@ -71,6 +73,9 @@ export const tagColorClasses = [
   "bg-rose-200",
 ] as const;
 
+const customTagColorSchema = z.string().trim().regex(customLockTagColorPattern).transform(normalizeLockTagColor);
+export const tagColorSchema = z.union([z.enum(tagColorClasses), customTagColorSchema]);
+
 export const lockAssignmentSchema = z.object({
   uniqueId: z.string().min(1).max(80),
   shipId: z.number().int().positive(),
@@ -94,7 +99,7 @@ export const lockTagSchema = z.object({
   id: z.string().optional(),
   activityId: activityIdSchema.optional().nullable(),
   name: z.string().min(1).max(50),
-  colorClass: z.enum(tagColorClasses),
+  colorClass: tagColorSchema,
   sortOrder: z.coerce.number().int().min(0).optional(),
 });
 

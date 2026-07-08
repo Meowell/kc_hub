@@ -13,6 +13,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { ActivityOverview } from "@/lib/activity-overview";
+import {
+  getLockTagColorClassName,
+  getLockTagColorStyle,
+  isCustomLockTagColor,
+} from "@/lib/lock-tag-colors";
 import { createMasterLookup } from "@/lib/master-data";
 import { parseNoro6Data, type Noro6Preview } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
@@ -619,10 +624,12 @@ export function ShipDataCenter({
                   type="button"
                   onClick={() => setSelectedLockTagId(tag.id)}
                   className={cn(
-                    "rounded-md px-3 py-2 text-xs font-bold text-slate-900 transition-all hover:ring-2 hover:ring-white/30",
-                    tag.colorClass,
+                    "rounded-md px-3 py-2 text-xs font-bold transition-all hover:ring-2 hover:ring-white/30",
+                    getLockTagColorClassName(tag.colorClass),
+                    !isCustomLockTagColor(tag.colorClass) && "text-slate-900",
                     selectedLockTagId === tag.id && "ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900",
                   )}
+                  style={getLockTagColorStyle(tag.colorClass)}
                 >
                   {tag.name}
                 </button>

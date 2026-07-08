@@ -18,6 +18,11 @@ import {
   type ActivityBonusGroup,
   type ShipBonusMatch,
 } from "@/lib/activity-bonus";
+import {
+  getLockTagColorClassName,
+  getLockTagColorStyle,
+  isCustomLockTagColor,
+} from "@/lib/lock-tag-colors";
 import { shipTypeLabels } from "@/lib/lock-plan-helpers";
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
@@ -169,6 +174,7 @@ export function ShipPickerModal({
           <div className="grid grid-cols-3 gap-2 max-h-[60vh] overflow-auto pr-1">
             {filteredShips.map((ship) => {
               const lock = shipLocks.get(ship.uniqueId);
+              const hasCustomLockColor = isCustomLockTagColor(lock?.tagColorClass);
               const shipTypeId = Number(getShipTypeId(ship.shipId)) || undefined;
               const bonusMatch = getShipBonusMatch(
                 bonusGroups,
@@ -192,9 +198,10 @@ export function ShipPickerModal({
                   className={cn(
                     "relative flex min-h-[82px] items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left transition hover:shadow focus:outline-none focus:ring-2 focus:ring-primary/50",
                     lock
-                      ? `${lock.tagColorClass} border-transparent`
+                      ? cn("border-transparent", getLockTagColorClassName(lock.tagColorClass), !hasCustomLockColor && "text-slate-800")
                       : "bg-white hover:bg-slate-50",
                   )}
+                  style={lock ? getLockTagColorStyle(lock.tagColorClass) : undefined}
                 >
                   {bonusMatch.hasAnyBonus && (
                     <button
@@ -217,19 +224,20 @@ export function ShipPickerModal({
                     </button>
                   )}
                   <div className="min-w-0 flex-1 pr-4">
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-700">
+                    <div className={cn("flex items-center gap-1.5 text-[10px]", hasCustomLockColor ? "text-inherit" : "text-slate-700")}>
                       <span className={cn("font-semibold", levelColor(ship.level))}>Lv{ship.level}</span>
-                      <span className="text-slate-700">{getShipType(ship.shipId)}</span>
-                      <span className="text-slate-700">ID {ship.shipId}</span>
+                      <span className={hasCustomLockColor ? "text-inherit" : "text-slate-700"}>{getShipType(ship.shipId)}</span>
+                      <span className={hasCustomLockColor ? "text-inherit" : "text-slate-700"}>ID {ship.shipId}</span>
                     </div>
                     <p className={cn(
-                      "truncate text-sm font-medium mt-0.5 text-slate-800",
+                      "truncate text-sm font-medium mt-0.5",
+                      hasCustomLockColor ? "text-inherit" : "text-slate-800",
                       bonusMatch.hasNamedBonus && "font-bold text-red-600",
                     )}>
                       {shipName}
                     </p>
                     {/* Stats row */}
-                    <div className="mt-1 flex gap-1.5 text-[10px] text-slate-500">
+                    <div className={cn("mt-1 flex gap-1.5 text-[10px]", hasCustomLockColor ? "text-inherit opacity-80" : "text-slate-500")}>
                       <span>火{ship.firepower}</span>
                       <span>雷{ship.torpedo}</span>
                       <span>空{ship.antiAir}</span>

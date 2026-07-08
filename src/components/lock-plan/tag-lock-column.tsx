@@ -17,6 +17,11 @@ import {
   summarizeBonusMultipliers,
   type ActivityBonusGroup,
 } from "@/lib/activity-bonus";
+import {
+  getLockTagColorClassName,
+  getLockTagColorStyle,
+  isCustomLockTagColor,
+} from "@/lib/lock-tag-colors";
 import { parseAssignments, type LockAssignment } from "@/lib/lock-plan-helpers";
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
@@ -242,16 +247,23 @@ export function TagLockColumn({
       onDragLeave={handleColumnDragLeave}
       onDrop={readOnly ? undefined : handleColumnDrop}
     >
-      <div className={cn("sticky top-0 z-10 mb-2 rounded-sm px-2 py-1 shadow-sm", tagColorClass)}>
+      <div
+        className={cn(
+          "sticky top-0 z-10 mb-2 rounded-sm px-2 py-1 shadow-sm",
+          getLockTagColorClassName(tagColorClass),
+          !isCustomLockTagColor(tagColorClass) && "text-slate-800",
+        )}
+        style={getLockTagColorStyle(tagColorClass)}
+      >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-bold text-slate-800 whitespace-nowrap">{tagName}</span>
+          <span className="text-sm font-bold text-inherit whitespace-nowrap">{tagName}</span>
           <div className="flex items-center gap-1">
             <button
               type="button"
               disabled={visibleCount <= 1}
               onClick={() => setSlotCount((prev) => Math.max(1, prev - 1))}
               className={cn(
-                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-slate-700",
+                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-inherit",
                 visibleCount <= 1
                   ? "opacity-30 cursor-not-allowed"
                   : "hover:bg-black/10",
@@ -267,7 +279,7 @@ export function TagLockColumn({
               disabled={visibleCount >= MAX_SLOTS}
               onClick={() => setSlotCount((prev) => Math.min(MAX_SLOTS, prev + 1))}
               className={cn(
-                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-slate-700",
+                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-inherit",
                 visibleCount >= MAX_SLOTS
                   ? "opacity-30 cursor-not-allowed"
                   : "hover:bg-black/10",

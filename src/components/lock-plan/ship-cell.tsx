@@ -1,6 +1,7 @@
 "use client";
 
 import { type ShipStock } from "@/lib/noro6";
+import { getLockTagColorClassName, getLockTagStripStyle } from "@/lib/lock-tag-colors";
 import { cn } from "@/lib/utils";
 
 type ShipCellProps = {
@@ -68,7 +69,10 @@ export function ShipCell({
       )}
     >
       {/* Left color tag */}
-      <div className={cn("absolute left-0 top-0 bottom-0 w-1 rounded-l-lg", tagColorClass)} />
+      <div
+        className={cn("absolute left-0 top-0 bottom-0 w-1 rounded-l-lg", getLockTagColorClassName(tagColorClass))}
+        style={getLockTagStripStyle(tagColorClass)}
+      />
 
       {/* Level — top-left corner, color by level range */}
       <span className={cn("absolute left-2 top-0.5 text-[10px] font-semibold leading-none", levelColor(ship?.level ?? 0))}>

@@ -17,6 +17,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import {
+  getLockTagColorClassName,
+  getLockTagColorStyle,
+  isCustomLockTagColor,
+  normalizeLockTagColor,
+} from "@/lib/lock-tag-colors";
 import { cn } from "@/lib/utils";
 import { tagColorClasses } from "@/lib/validators";
 
@@ -73,7 +79,12 @@ export function TagManager({ tags, deleteImpacts = {}, readOnly = false, onAdd, 
         {tags.map((tag) => (
           <div key={tag.id} className="group relative">
             <span
-              className={cn("inline-flex cursor-pointer items-center rounded-md px-4 py-1.5 text-sm font-bold text-slate-800 hover:ring-2 hover:ring-white/30 transition-all", tag.colorClass)}
+              className={cn(
+                "inline-flex cursor-pointer items-center rounded-md px-4 py-1.5 text-sm font-bold hover:ring-2 hover:ring-white/30 transition-all",
+                getLockTagColorClassName(tag.colorClass),
+                !isCustomLockTagColor(tag.colorClass) && "text-slate-800",
+              )}
+              style={getLockTagColorStyle(tag.colorClass)}
               onClick={() => {
                 if (readOnly) return;
                 setEditingTag(tag);
@@ -122,15 +133,32 @@ export function TagManager({ tags, deleteImpacts = {}, readOnly = false, onAdd, 
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">颜色</label>
+              <div className="mb-3 flex items-center gap-2">
+                <input
+                  type="color"
+                  value={isCustomLockTagColor(newColor) ? normalizeLockTagColor(newColor) : "#fca5a5"}
+                  onChange={(e) => setNewColor(e.target.value)}
+                  className="h-9 w-12 cursor-pointer rounded border border-slate-600 bg-slate-800 p-1"
+                  title="选择真实颜色"
+                />
+                <Input
+                  value={newColor}
+                  onChange={(e) => setNewColor(e.target.value.trim())}
+                  placeholder="#2f2f32 或 bg-red-200"
+                  className="font-mono text-xs"
+                />
+              </div>
               <div className="grid grid-cols-4 gap-2">
                 {tagColorClasses.map((color) => (
                   <button
                     key={color} type="button"
                     onClick={() => setNewColor(color)}
                     className={cn(
-                      "h-10 rounded-lg border-2 transition-all", color,
+                      "h-10 rounded-lg border-2 transition-all",
+                      getLockTagColorClassName(color),
                       newColor === color ? "border-white ring-2 ring-white/20 scale-105" : "border-transparent hover:ring-2 hover:ring-white/10",
                     )}
+                    style={getLockTagColorStyle(color)}
                     title={color.replace("bg-", "").replace("-200", "")}
                   />
                 ))}
