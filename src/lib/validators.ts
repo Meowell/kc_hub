@@ -54,6 +54,7 @@ export const strategyPostSchema = z.object({
 });
 
 export const tagColorClasses = [
+  "bg-slate-300",
   "bg-red-200",
   "bg-orange-200",
   "bg-amber-200",

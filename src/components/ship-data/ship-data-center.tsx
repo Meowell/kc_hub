@@ -702,7 +702,7 @@ export function ShipDataCenter({
                   {activityOverview.rewards.map((reward) => (
                     <div key={`${reward.label}-${reward.value}`} className="rounded-sm border border-slate-700/60 bg-slate-950/25 px-2 py-1.5 text-xs">
                       <span className="text-slate-500">{reward.label}</span>
-                      <span className="ml-2 font-semibold text-slate-100">{reward.value}</span>
+                      <p className="mt-1 break-words font-semibold leading-relaxed text-slate-100">{reward.value}</p>
                       {reward.note && <p className="mt-1 text-[11px] text-slate-500">{reward.note}</p>}
                     </div>
                   ))}
