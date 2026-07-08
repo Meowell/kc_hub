@@ -476,6 +476,7 @@ export function ShipDataCenter({
 
   const cardBase =
     "min-w-0 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm shadow-lg shadow-black/10";
+  const topCardClass = "h-[368px]";
 
   const thClass =
     "text-center px-1.5 py-2.5 font-medium text-slate-400 cursor-pointer select-none hover:text-slate-200 transition-colors";
@@ -497,10 +498,10 @@ export function ShipDataCenter({
   return (
     <div className="min-w-0 space-y-6">
       {/* Row 1: noro6 import card + placeholders */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+      <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-3 sm:gap-4">
         {/* noro6 import card */}
-        <div className={`${cardBase} p-4`}>
-          <form onSubmit={onPreview} className="space-y-2.5">
+        <div className={cn(cardBase, topCardClass, "p-4")}>
+          <form onSubmit={onPreview} className="h-full space-y-2.5 overflow-y-auto pr-1">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-2">
                 <h2 className="text-sm font-semibold text-white">DATA SYNC / 数据同步</h2>
@@ -594,7 +595,7 @@ export function ShipDataCenter({
           </form>
         </div>
 
-        <div className={`${cardBase} flex min-h-[220px] flex-col`}>
+        <div className={cn(cardBase, topCardClass, "flex flex-col")}>
           <div className="flex items-center justify-between gap-3 border-b border-slate-700/50 px-4 py-4">
             <div className="min-w-0">
               <p className="terminal-label text-[10px] font-semibold text-primary">LOCK TAGS</p>
@@ -604,36 +605,38 @@ export function ShipDataCenter({
               {lockTags.length} TAGS
             </StatusBadge>
           </div>
-          <div className="flex flex-1 flex-col gap-3 p-4">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedLockTagId("all")}
-                className={cn(
-                  "rounded-md border px-3 py-2 text-xs font-semibold transition-colors",
-                  selectedLockTagId === "all"
-                    ? "border-primary/60 bg-primary/15 text-sky-100"
-                    : "border-slate-700/70 bg-slate-950/25 text-slate-400 hover:border-primary/35 hover:text-slate-200",
-                )}
-              >
-                全部贴条
-              </button>
-              {lockTags.map((tag) => (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="flex flex-wrap gap-2">
                 <button
-                  key={tag.id}
                   type="button"
-                  onClick={() => setSelectedLockTagId(tag.id)}
+                  onClick={() => setSelectedLockTagId("all")}
                   className={cn(
-                    "rounded-md px-3 py-2 text-xs font-bold transition-all hover:ring-2 hover:ring-white/30",
-                    getLockTagColorClassName(tag.colorClass),
-                    !isCustomLockTagColor(tag.colorClass) && "text-slate-900",
-                    selectedLockTagId === tag.id && "ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900",
+                    "rounded-md border px-3 py-2 text-xs font-semibold transition-colors",
+                    selectedLockTagId === "all"
+                      ? "border-primary/60 bg-primary/15 text-sky-100"
+                      : "border-slate-700/70 bg-slate-950/25 text-slate-400 hover:border-primary/35 hover:text-slate-200",
                   )}
-                  style={getLockTagColorStyle(tag.colorClass)}
                 >
-                  {tag.name}
+                  全部贴条
                 </button>
-              ))}
+                {lockTags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => setSelectedLockTagId(tag.id)}
+                    className={cn(
+                      "rounded-md px-3 py-2 text-xs font-bold transition-all hover:ring-2 hover:ring-white/30",
+                      getLockTagColorClassName(tag.colorClass),
+                      !isCustomLockTagColor(tag.colorClass) && "text-slate-900",
+                      selectedLockTagId === tag.id && "ring-2 ring-primary/80 ring-offset-2 ring-offset-slate-900",
+                    )}
+                    style={getLockTagColorStyle(tag.colorClass)}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="mt-auto rounded-md border border-slate-700/60 bg-slate-950/25 px-3 py-2">
               <p className="terminal-label text-[10px] text-slate-500">ACTIVE FILTER</p>
@@ -644,7 +647,7 @@ export function ShipDataCenter({
           </div>
         </div>
 
-        <div className={`${cardBase} flex min-h-[220px] flex-col`}>
+        <div className={cn(cardBase, topCardClass, "flex flex-col")}>
           <div className="flex items-center justify-between gap-3 border-b border-slate-700/50 px-4 py-4">
             <div className="min-w-0">
               <p className="terminal-label text-[10px] font-semibold text-primary">EVENT INTEL</p>
@@ -654,7 +657,7 @@ export function ShipDataCenter({
               {activityOverview.status ?? "INFO"}
             </StatusBadge>
           </div>
-          <div className="space-y-3 p-4">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 pr-3">
             <div>
               <p className="text-base font-bold text-white">{activityOverview.title}</p>
               <p className="mt-1 text-xs text-slate-500">{activityOverview.subtitle ?? currentActivityName}</p>
