@@ -41,6 +41,8 @@ type ShipPickerModalProps = {
   onSelectShip: (ship: ShipStock) => void;
 };
 
+type BonusFilter = "all" | "named" | "any" | "type" | "none";
+
 function levelColor(level: number): string {
   if (level >= 100) return "text-amber-700";
   if (level >= 80) return "text-green-700";
@@ -62,6 +64,7 @@ export function ShipPickerModal({
 }: ShipPickerModalProps) {
   const [query, setQuery] = useState("");
   const [shipType, setShipType] = useState("all");
+  const [bonusFilter, setBonusFilter] = useState<BonusFilter>("all");
   const [bonusDetail, setBonusDetail] = useState<{
     shipName: string;
     match: ShipBonusMatch;
@@ -73,15 +76,29 @@ export function ShipPickerModal({
     return ships
       .filter((ship) => {
         const name = getShipName(ship.shipId);
+        const shipTypeId = Number(getShipTypeId(ship.shipId)) || undefined;
+        const bonusMatch = getShipBonusMatch(
+          bonusGroups,
+          ship.shipId,
+          shipTypeId,
+          getShipOriginalId?.(ship.shipId) ?? ship.shipId,
+        );
         const matchesQuery =
           !q || name.toLowerCase().includes(q) || String(ship.shipId).includes(q);
         const matchesType =
           shipType === "all" ||
           getShipTypeId(ship.shipId) === shipType;
-        return matchesQuery && matchesType;
+        const matchesBonus =
+          bonusFilter === "all" ||
+          (bonusFilter === "named" && bonusMatch.hasNamedBonus) ||
+          (bonusFilter === "any" && bonusMatch.hasAnyBonus) ||
+          (bonusFilter === "type" && !bonusMatch.hasNamedBonus && bonusMatch.typeGroups.length > 0) ||
+          (bonusFilter === "none" && !bonusMatch.hasAnyBonus);
+
+        return matchesQuery && matchesType && matchesBonus;
       })
       .sort((a, b) => b.level - a.level);
-  }, [ships, deferredQuery, shipType, getShipName, getShipTypeId]);
+  }, [ships, deferredQuery, shipType, bonusFilter, bonusGroups, getShipName, getShipTypeId, getShipOriginalId]);
 
   return (
     <Dialog
@@ -100,7 +117,7 @@ export function ShipPickerModal({
         </DialogHeader>
 
         {/* Filters */}
-        <div className="flex gap-3 mb-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1 group">
             <Input
               value={query}
@@ -121,7 +138,7 @@ export function ShipPickerModal({
           <Select
             value={shipType}
             onChange={(e) => setShipType(e.target.value)}
-            className="w-40 bg-white text-slate-800 border-slate-300"
+            className="sm:w-40 bg-white text-slate-800 border-slate-300"
           >
             <option value="all">全部舰种</option>
             {Object.entries(shipTypeLabels).map(([id, label]) => (
@@ -129,6 +146,17 @@ export function ShipPickerModal({
                 {label}
               </option>
             ))}
+          </Select>
+          <Select
+            value={bonusFilter}
+            onChange={(e) => setBonusFilter(e.target.value as BonusFilter)}
+            className="sm:w-40 bg-white text-slate-800 border-slate-300"
+          >
+            <option value="all">全部倍卡</option>
+            <option value="named">具名倍卡</option>
+            <option value="any">任意倍卡</option>
+            <option value="type">舰种通用</option>
+            <option value="none">无倍卡</option>
           </Select>
         </div>
 

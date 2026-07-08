@@ -813,54 +813,6 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
 
   return (
     <div className="space-y-6">
-      {/* Section 1: Header */}
-      <Panel
-        eyebrow="LOCK MATRIX"
-        title={`${activityLabel}锁船矩阵`}
-        status={<StatusBadge variant={saveStatusDisplay.variant}>{saveStatusDisplay.label}</StatusBadge>}
-        actions={pendingUndo ? (
-          <button
-            type="button"
-            onClick={undoLastOperation}
-            className="border border-border-base bg-slate-950/35 px-2 py-1 text-xs font-semibold text-slate-200 hover:border-primary/60 hover:text-sky-100"
-          >
-            {pendingUndo.label}
-          </button>
-        ) : null}
-        dense
-      >
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div>
-            <p className="text-sm text-slate-400">
-              {isDailyScope ? "日常锁船分配一览，标签颜色全局同步。" : "本期活动独立锁船分配一览，标签和计划不会影响其他活动。"}
-            </p>
-            <p className="mt-2 text-xs text-slate-500">{saveStatusDisplay.detail}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
-              <p className="terminal-label text-[10px] text-slate-500">TAGS</p>
-              <p className="text-lg font-semibold text-white">{matrixSummary.activeTagCount}</p>
-            </div>
-            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
-              <p className="terminal-label text-[10px] text-slate-500">ASSIGNED</p>
-              <p className="text-lg font-semibold text-white">{matrixSummary.assignedShipCount}</p>
-            </div>
-            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
-              <p className="terminal-label text-[10px] text-slate-500">CONFLICT</p>
-              <p className={matrixSummary.conflictCount > 0 ? "text-lg font-semibold text-red-200" : "text-lg font-semibold text-emerald-200"}>
-                {matrixSummary.conflictCount}
-              </p>
-            </div>
-            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
-              <p className="terminal-label text-[10px] text-slate-500">NO DATA</p>
-              <p className={matrixSummary.missingShipDataCount > 0 ? "text-lg font-semibold text-amber-200" : "text-lg font-semibold text-emerald-200"}>
-                {matrixSummary.missingShipDataCount}
-              </p>
-            </div>
-          </div>
-        </div>
-      </Panel>
-
       {/* Error banner */}
       {error && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
@@ -879,15 +831,6 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
         onAdd={handleAddTag}
         onEdit={handleEditTag}
         onDelete={handleDeleteTag}
-      />
-
-      <BonusManager
-        activityId={activityId}
-        tags={activeTags}
-        config={bonusConfig}
-        canManage={canManageTags}
-        getShipName={getShipName}
-        onConfigChange={setBonusConfig}
       />
 
       {/* Section 3a: Mobile current-user flow */}
@@ -1041,6 +984,63 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
           );
         })}
       </div>
+
+      {/* Section 4: Summary and bonus tools */}
+      <Panel
+        eyebrow="LOCK MATRIX"
+        title={`${activityLabel}锁船矩阵`}
+        status={<StatusBadge variant={saveStatusDisplay.variant}>{saveStatusDisplay.label}</StatusBadge>}
+        actions={pendingUndo ? (
+          <button
+            type="button"
+            onClick={undoLastOperation}
+            className="border border-border-base bg-slate-950/35 px-2 py-1 text-xs font-semibold text-slate-200 hover:border-primary/60 hover:text-sky-100"
+          >
+            {pendingUndo.label}
+          </button>
+        ) : null}
+        dense
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <p className="text-sm text-slate-400">
+              {isDailyScope ? "日常锁船分配一览，标签颜色全局同步。" : "本期活动独立锁船分配一览，标签和计划不会影响其他活动。"}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">{saveStatusDisplay.detail}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">TAGS</p>
+              <p className="text-lg font-semibold text-white">{matrixSummary.activeTagCount}</p>
+            </div>
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">ASSIGNED</p>
+              <p className="text-lg font-semibold text-white">{matrixSummary.assignedShipCount}</p>
+            </div>
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">CONFLICT</p>
+              <p className={matrixSummary.conflictCount > 0 ? "text-lg font-semibold text-red-200" : "text-lg font-semibold text-emerald-200"}>
+                {matrixSummary.conflictCount}
+              </p>
+            </div>
+            <div className="border border-border-base bg-slate-950/30 px-3 py-2">
+              <p className="terminal-label text-[10px] text-slate-500">NO DATA</p>
+              <p className={matrixSummary.missingShipDataCount > 0 ? "text-lg font-semibold text-amber-200" : "text-lg font-semibold text-emerald-200"}>
+                {matrixSummary.missingShipDataCount}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Panel>
+
+      <BonusManager
+        activityId={activityId}
+        tags={activeTags}
+        config={bonusConfig}
+        canManage={canManageTags}
+        getShipName={getShipName}
+        onConfigChange={setBonusConfig}
+      />
 
       {/* Ship Picker Modal */}
       <ShipPickerModal
