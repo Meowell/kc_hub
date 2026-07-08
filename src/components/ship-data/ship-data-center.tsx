@@ -476,7 +476,7 @@ export function ShipDataCenter({
 
   const cardBase =
     "min-w-0 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm shadow-lg shadow-black/10";
-  const topCardClass = "h-[368px]";
+  const topCardClass = "h-[280px]";
 
   const thClass =
     "text-center px-1.5 py-2.5 font-medium text-slate-400 cursor-pointer select-none hover:text-slate-200 transition-colors";
