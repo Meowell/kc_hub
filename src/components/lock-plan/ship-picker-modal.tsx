@@ -46,7 +46,7 @@ type ShipPickerModalProps = {
   onSelectShip: (ship: ShipStock) => void;
 };
 
-type BonusFilter = "all" | "named" | "any" | "type" | "none";
+type BonusFilter = "all" | "named" | "none";
 
 function levelColor(level: number): string {
   if (level >= 100) return "text-amber-700";
@@ -96,9 +96,7 @@ export function ShipPickerModal({
         const matchesBonus =
           bonusFilter === "all" ||
           (bonusFilter === "named" && bonusMatch.hasNamedBonus) ||
-          (bonusFilter === "any" && bonusMatch.hasAnyBonus) ||
-          (bonusFilter === "type" && !bonusMatch.hasNamedBonus && bonusMatch.typeGroups.length > 0) ||
-          (bonusFilter === "none" && !bonusMatch.hasAnyBonus);
+          (bonusFilter === "none" && !bonusMatch.hasNamedBonus);
 
         return matchesQuery && matchesType && matchesBonus;
       })
@@ -159,9 +157,7 @@ export function ShipPickerModal({
           >
             <option value="all">全部舰娘</option>
             <option value="named">特定舰倍卡</option>
-            <option value="any">有倍卡</option>
-            <option value="type">仅舰种通用</option>
-            <option value="none">无倍卡</option>
+            <option value="none">无特定舰倍卡</option>
           </Select>
         </div>
 
