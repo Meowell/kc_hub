@@ -690,6 +690,12 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
     assignShip(pickerUserIdRef.current, pickerTagIdRef.current, ship, pickerCellIndexRef.current);
   }
 
+  function closeConflictDialog() {
+    setConflictOpen(false);
+    setConflictInfo(null);
+    pendingAssignmentRef.current = null;
+  }
+
   // ==========================================================
   // Map userId -> userName for display
   // ==========================================================
@@ -1145,7 +1151,13 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
       {/* Conflict Alert Dialog */}
       <ConflictAlertDialog
         open={conflictOpen}
-        onOpenChange={setConflictOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setConflictOpen(true);
+          } else {
+            closeConflictDialog();
+          }
+        }}
         shipName={conflictInfo ? getShipName(conflictInfo.ship.shipId) : ""}
         currentTagName={conflictInfo?.currentTagName ?? ""}
         targetTagName={conflictInfo?.targetTagName ?? ""}
@@ -1159,6 +1171,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
             );
           }
           setPickerOpen(false);
+          closeConflictDialog();
         }}
       />
     </div>

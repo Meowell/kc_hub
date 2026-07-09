@@ -11,7 +11,7 @@ type Props = {
   shipName: string;
   currentTagName: string;
   targetTagName: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 };
 
 export function ConflictAlertDialog({ open, onOpenChange, shipName, currentTagName, targetTagName, onConfirm }: Props) {
@@ -26,8 +26,8 @@ export function ConflictAlertDialog({ open, onOpenChange, shipName, currentTagNa
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel>取消</AlertDialogCancel>
-        <AlertDialogAction variant="danger" onClick={() => { onConfirm(); onOpenChange(false); }}>
+        <AlertDialogCancel onClick={() => onOpenChange(false)}>取消</AlertDialogCancel>
+        <AlertDialogAction variant="danger" onClick={onConfirm}>
           确认覆盖
         </AlertDialogAction>
       </AlertDialogFooter>
