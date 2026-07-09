@@ -78,10 +78,17 @@ export const shipTypeLabels: Record<number, string> = {
   9: "BB",
   10: "BBV",
   11: "CV",
+  12: "BBB",
+  13: "SS",
+  14: "SSV",
+  15: "AO",
   16: "AV",
   17: "LHA",
-  18: "SS",
-  19: "SSV",
+  18: "CVB",
+  19: "AR",
+  20: "AS",
+  21: "CT",
+  22: "AO",
 };
 
 function getRemodelRoot(shipId: number, remodelFrom: Map<number, number>): number {

@@ -8,22 +8,13 @@ import {
   type FleetParser,
   type ParsedShip,
 } from "@/lib/fleet-parser";
-import { createMasterLookup, type MasterLookup } from "@/lib/master-data";
+import { createMasterLookup, shipTypeLabels, type MasterLookup } from "@/lib/master-data";
 import { parseNoro6Data } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
 
-/* ── Ship type abbrev ── */
-
-const SHIP_TYPE_ABBR: Record<number, string> = {
-  1: "DE", 2: "DD", 3: "CL", 4: "CLT", 5: "CA", 6: "CAV",
-  7: "CVL", 8: "FBB", 9: "BB", 10: "BBV", 11: "CV", 12: "BBB",
-  13: "SS", 14: "SSV", 16: "AV", 17: "LHA", 18: "CVB", 19: "AR",
-  20: "AS", 21: "CT", 22: "AO",
-};
-
 function getShipTypeAbbr(shipId: number, lookup: MasterLookup): string {
   const stype = lookup.shipTypeById.get(shipId);
-  return stype ? (SHIP_TYPE_ABBR[stype] ?? "?") : "?";
+  return stype ? (shipTypeLabels[stype] ?? "?") : "?";
 }
 
 /* ── Fleet / Equipment state types ── */
