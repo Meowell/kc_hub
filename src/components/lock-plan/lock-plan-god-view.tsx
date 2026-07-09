@@ -24,6 +24,7 @@ import {
   getSaveStatusDisplay,
   getDefaultMobileTagId,
   getTagDisableImpact,
+  moveAssignmentBetweenTags,
   parseAssignments,
   type LockAssignment,
   type LockSaveStatus,
@@ -544,27 +545,18 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
 
     const currentPlans = plansByUser[userId] ?? {};
 
-    // Target: set dup to null, then insert at exact dropIndex
     const targetData = currentPlans[targetTagId] ?? "[]";
-    const targetAssignments = parseAssignments(targetData).map((a) =>
-      (a && a.uniqueId === uniqueId) ? null : a,
-    );
-    // Extend to reach dropIndex
-    while (targetAssignments.length <= targetIndex) targetAssignments.push(null);
-    targetAssignments[targetIndex] = { uniqueId, shipId };
-    // Trim trailing nulls
-    while (targetAssignments.length > 0 && targetAssignments[targetAssignments.length - 1] === null) {
-      targetAssignments.pop();
-    }
-
-    // Source: set to null, trim trailing
     const sourceData = currentPlans[sourceTagId] ?? "[]";
-    const newSource = parseAssignments(sourceData).map((a) =>
-      (a && a.uniqueId === uniqueId) ? null : a,
+    const {
+      sourceAssignments: newSource,
+      targetAssignments,
+    } = moveAssignmentBetweenTags(
+      parseAssignments(sourceData),
+      parseAssignments(targetData),
+      uniqueId,
+      shipId,
+      targetIndex,
     );
-    while (newSource.length > 0 && newSource[newSource.length - 1] === null) {
-      newSource.pop();
-    }
 
     // Optimistic
     setPlansByUser((prev) => {

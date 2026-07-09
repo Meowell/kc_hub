@@ -6,6 +6,8 @@ import {
   getDefaultMobileTagId,
   getSaveStatusDisplay,
   getTagDisableImpact,
+  moveAssignmentBetweenTags,
+  reorderAssignmentWithinTag,
 } from "./lock-plan-helpers";
 
 describe("buildLockMatrixSummary", () => {
@@ -152,6 +154,91 @@ describe("getDefaultMobileTagId", () => {
         {},
       ),
       "tag-e1",
+    );
+  });
+});
+
+describe("reorderAssignmentWithinTag", () => {
+  it("swaps ships when dropping onto an occupied slot in the same tag", () => {
+    const assignments = [
+      { uniqueId: "ship-1", shipId: 101 },
+      null,
+      { uniqueId: "ship-2", shipId: 102 },
+    ];
+
+    assert.deepEqual(
+      reorderAssignmentWithinTag(assignments, "ship-1", 101, 2),
+      [
+        { uniqueId: "ship-2", shipId: 102 },
+        null,
+        { uniqueId: "ship-1", shipId: 101 },
+      ],
+    );
+  });
+
+  it("moves the dragged ship when dropping onto an empty slot", () => {
+    const assignments = [
+      { uniqueId: "ship-1", shipId: 101 },
+      null,
+      { uniqueId: "ship-2", shipId: 102 },
+    ];
+
+    assert.deepEqual(
+      reorderAssignmentWithinTag(assignments, "ship-2", 102, 1),
+      [
+        { uniqueId: "ship-1", shipId: 101 },
+        { uniqueId: "ship-2", shipId: 102 },
+      ],
+    );
+  });
+});
+
+describe("moveAssignmentBetweenTags", () => {
+  it("swaps the target ship back to the source slot when dropping onto an occupied cross-tag slot", () => {
+    const sourceAssignments = [
+      { uniqueId: "ship-1", shipId: 101 },
+      null,
+      { uniqueId: "ship-2", shipId: 102 },
+    ];
+    const targetAssignments = [
+      { uniqueId: "ship-3", shipId: 103 },
+    ];
+
+    assert.deepEqual(
+      moveAssignmentBetweenTags(sourceAssignments, targetAssignments, "ship-1", 101, 0),
+      {
+        sourceAssignments: [
+          { uniqueId: "ship-3", shipId: 103 },
+          null,
+          { uniqueId: "ship-2", shipId: 102 },
+        ],
+        targetAssignments: [
+          { uniqueId: "ship-1", shipId: 101 },
+        ],
+      },
+    );
+  });
+
+  it("moves the dragged ship out of the source slot when dropping onto an empty cross-tag slot", () => {
+    const sourceAssignments = [
+      { uniqueId: "ship-1", shipId: 101 },
+      { uniqueId: "ship-2", shipId: 102 },
+    ];
+    const targetAssignments = [
+      { uniqueId: "ship-3", shipId: 103 },
+    ];
+
+    assert.deepEqual(
+      moveAssignmentBetweenTags(sourceAssignments, targetAssignments, "ship-2", 102, 1),
+      {
+        sourceAssignments: [
+          { uniqueId: "ship-1", shipId: 101 },
+        ],
+        targetAssignments: [
+          { uniqueId: "ship-3", shipId: 103 },
+          { uniqueId: "ship-2", shipId: 102 },
+        ],
+      },
     );
   });
 });

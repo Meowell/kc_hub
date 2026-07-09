@@ -44,6 +44,64 @@ export function parseAssignments(value: string): (LockAssignment | null)[] {
   }
 }
 
+export function reorderAssignmentWithinTag(
+  assignments: (LockAssignment | null)[],
+  uniqueId: string,
+  shipId: number,
+  dropIndex: number,
+) {
+  const sourceIndex = assignments.findIndex((assignment) => assignment?.uniqueId === uniqueId);
+  if (sourceIndex < 0 || dropIndex < 0 || sourceIndex === dropIndex) return assignments;
+
+  const next = [...assignments];
+  while (next.length <= Math.max(sourceIndex, dropIndex)) next.push(null);
+
+  const target = next[dropIndex] ?? null;
+  next[dropIndex] = { uniqueId, shipId };
+  next[sourceIndex] = target;
+
+  while (next.length > 0 && next[next.length - 1] === null) {
+    next.pop();
+  }
+
+  return next;
+}
+
+export function moveAssignmentBetweenTags(
+  sourceAssignments: (LockAssignment | null)[],
+  targetAssignments: (LockAssignment | null)[],
+  uniqueId: string,
+  shipId: number,
+  targetIndex: number,
+) {
+  const sourceIndex = sourceAssignments.findIndex((assignment) => assignment?.uniqueId === uniqueId);
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return { sourceAssignments, targetAssignments };
+  }
+
+  const nextSource = [...sourceAssignments];
+  const nextTarget = targetAssignments.map((assignment) =>
+    assignment?.uniqueId === uniqueId ? null : assignment,
+  );
+  while (nextTarget.length <= targetIndex) nextTarget.push(null);
+
+  const target = nextTarget[targetIndex] ?? null;
+  nextTarget[targetIndex] = { uniqueId, shipId };
+  nextSource[sourceIndex] = target;
+
+  while (nextTarget.length > 0 && nextTarget[nextTarget.length - 1] === null) {
+    nextTarget.pop();
+  }
+  while (nextSource.length > 0 && nextSource[nextSource.length - 1] === null) {
+    nextSource.pop();
+  }
+
+  return {
+    sourceAssignments: nextSource,
+    targetAssignments: nextTarget,
+  };
+}
+
 export type LockMatrixSummaryTag = {
   id: string;
   isActive?: boolean;

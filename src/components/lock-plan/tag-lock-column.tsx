@@ -22,7 +22,11 @@ import {
   getLockTagColorStyle,
   isCustomLockTagColor,
 } from "@/lib/lock-tag-colors";
-import { parseAssignments, type LockAssignment } from "@/lib/lock-plan-helpers";
+import {
+  parseAssignments,
+  reorderAssignmentWithinTag,
+  type LockAssignment,
+} from "@/lib/lock-plan-helpers";
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
 
@@ -182,17 +186,12 @@ export function TagLockColumn({
     }
 
     if (dragData.sourceTagId === tagId) {
-      // Same tag: reorder — insert at exact dropIndex, preserving gaps
-      const newArr: (LockAssignment | null)[] = assignments.map((a) =>
-        (a && a.uniqueId === dragData.uniqueId) ? null : a,
+      const newArr = reorderAssignmentWithinTag(
+        assignments,
+        dragData.uniqueId,
+        dragData.shipId,
+        dropIndex,
       );
-      // Extend array to reach dropIndex
-      while (newArr.length <= dropIndex) newArr.push(null);
-      newArr[dropIndex] = { uniqueId: dragData.uniqueId, shipId: dragData.shipId };
-      // Trim trailing nulls
-      while (newArr.length > 0 && newArr[newArr.length - 1] === null) {
-        newArr.pop();
-      }
       onReorder?.(tagId, newArr);
     } else {
       // Cross-tag: move ship
