@@ -19,7 +19,7 @@ describe("activity bonus config", () => {
         shipIds: [706, 566],
         points: [
           { code: "Z", label: "P1 Boss", multiplier: 1.07 },
-          { code: "P", label: "道中", multiplier: 1.2 },
+          { code: "P", label: "道中", multiplier: 1.03 },
         ],
       },
       {
@@ -67,11 +67,13 @@ describe("activity bonus config", () => {
     assert.equal(namedMatch.hasNamedBonus, true);
     assert.deepEqual(namedMatch.namedGroups.map((group) => group.id), ["e1-history"]);
     assert.deepEqual(namedMatch.typeGroups.map((group) => group.id), ["e1-dd-common"]);
+    assert.equal(namedMatch.multiplierLabel, "x1.091");
 
     const genericMatch = getShipBonusMatch(groups, 999, 2, 999);
     assert.equal(genericMatch.hasAnyBonus, true);
     assert.equal(genericMatch.hasNamedBonus, false);
     assert.deepEqual(genericMatch.groups.map((group) => group.id), ["e1-dd-common"]);
+    assert.equal(genericMatch.multiplierLabel, "x1.02");
   });
 
   it("normalizes multiplier ranges to their midpoint", () => {

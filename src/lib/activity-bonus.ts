@@ -231,6 +231,40 @@ export function summarizeBonusMultipliers(groups: ActivityBonusGroup[]) {
   return "多倍率";
 }
 
+function normalizePointCode(code: string) {
+  return code.trim().toUpperCase();
+}
+
+export function getEffectiveBonusMultipliers(groups: ActivityBonusGroup[]) {
+  const multipliersByPoint = new Map<string, number>();
+
+  for (const group of groups) {
+    const bestGroupMultiplierByPoint = new Map<string, number>();
+
+    for (const point of group.points) {
+      const code = normalizePointCode(point.code);
+      if (!code) continue;
+      const key = `${group.map?.trim().toUpperCase() ?? ""}|${code}`;
+      const current = bestGroupMultiplierByPoint.get(key) ?? 0;
+      bestGroupMultiplierByPoint.set(key, Math.max(current, point.multiplier));
+    }
+
+    for (const [key, multiplier] of bestGroupMultiplierByPoint) {
+      multipliersByPoint.set(key, (multipliersByPoint.get(key) ?? 1) * multiplier);
+    }
+  }
+
+  return uniqueSorted(
+    Array.from(multipliersByPoint.values()).map((value) => Number(value.toFixed(6))),
+  );
+}
+
+export function summarizeEffectiveBonusMultiplier(groups: ActivityBonusGroup[]) {
+  const values = getEffectiveBonusMultipliers(groups);
+  if (values.length === 0) return "未填倍率";
+  return formatMultiplier(Math.max(...values));
+}
+
 export function summarizeBonusGroupNames(groups: ActivityBonusGroup[]) {
   if (groups.length === 0) return "无倍卡";
   if (groups.length === 1) return groups[0].name;
@@ -268,7 +302,7 @@ export function getShipBonusMatch(
     hasAnyBonus: matchedGroups.length > 0,
     hasNamedBonus: namedGroups.length > 0,
     groupLabel: summarizeBonusGroupNames(matchedGroups),
-    multiplierLabel: summarizeBonusMultipliers(matchedGroups),
+    multiplierLabel: summarizeEffectiveBonusMultiplier(matchedGroups),
   };
 }
 
