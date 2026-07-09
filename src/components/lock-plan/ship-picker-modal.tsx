@@ -157,10 +157,10 @@ export function ShipPickerModal({
             onChange={(e) => setBonusFilter(e.target.value as BonusFilter)}
             className="sm:w-40 bg-white text-slate-800 border-slate-300"
           >
-            <option value="all">全部倍卡</option>
-            <option value="named">具名倍卡</option>
-            <option value="any">任意倍卡</option>
-            <option value="type">舰种通用</option>
+            <option value="all">全部舰娘</option>
+            <option value="named">特定舰倍卡</option>
+            <option value="any">有倍卡</option>
+            <option value="type">仅舰种通用</option>
             <option value="none">无倍卡</option>
           </Select>
         </div>
