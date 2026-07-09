@@ -235,27 +235,75 @@ function normalizePointCode(code: string) {
   return code.trim().toUpperCase();
 }
 
+function normalizeMapCode(map: string | undefined) {
+  return map?.trim().toUpperCase() ?? "";
+}
+
+function isGlobalPointCode(code: string) {
+  return code === "ALL" || code === "全图" || code === "全域";
+}
+
 export function getEffectiveBonusMultipliers(groups: ActivityBonusGroup[]) {
-  const multipliersByPoint = new Map<string, number>();
+  const globalMultipliersByMap = new Map<string, number[]>();
+  const pointMultipliersByMap = new Map<string, Map<string, number[]>>();
 
   for (const group of groups) {
-    const bestGroupMultiplierByPoint = new Map<string, number>();
+    const mapCode = normalizeMapCode(group.map);
+    const bestGlobalMultiplierByMap = new Map<string, number>();
+    const bestPointMultiplierByKey = new Map<string, { mapCode: string; pointCode: string; multiplier: number }>();
 
     for (const point of group.points) {
       const code = normalizePointCode(point.code);
       if (!code) continue;
-      const key = `${group.map?.trim().toUpperCase() ?? ""}|${code}`;
-      const current = bestGroupMultiplierByPoint.get(key) ?? 0;
-      bestGroupMultiplierByPoint.set(key, Math.max(current, point.multiplier));
+      if (isGlobalPointCode(code)) {
+        const current = bestGlobalMultiplierByMap.get(mapCode) ?? 0;
+        bestGlobalMultiplierByMap.set(mapCode, Math.max(current, point.multiplier));
+        continue;
+      }
+
+      const key = `${mapCode}|${code}`;
+      const current = bestPointMultiplierByKey.get(key);
+      if (!current || point.multiplier > current.multiplier) {
+        bestPointMultiplierByKey.set(key, { mapCode, pointCode: code, multiplier: point.multiplier });
+      }
     }
 
-    for (const [key, multiplier] of bestGroupMultiplierByPoint) {
-      multipliersByPoint.set(key, (multipliersByPoint.get(key) ?? 1) * multiplier);
+    for (const [groupMapCode, multiplier] of bestGlobalMultiplierByMap) {
+      const list = globalMultipliersByMap.get(groupMapCode) ?? [];
+      list.push(multiplier);
+      globalMultipliersByMap.set(groupMapCode, list);
+    }
+
+    for (const { mapCode: groupMapCode, pointCode, multiplier } of bestPointMultiplierByKey.values()) {
+      const points = pointMultipliersByMap.get(groupMapCode) ?? new Map<string, number[]>();
+      const list = points.get(pointCode) ?? [];
+      list.push(multiplier);
+      points.set(pointCode, list);
+      pointMultipliersByMap.set(groupMapCode, points);
+    }
+  }
+
+  const effectiveValues: number[] = [];
+  const mapCodes = new Set([...globalMultipliersByMap.keys(), ...pointMultipliersByMap.keys()]);
+
+  for (const mapCode of mapCodes) {
+    const globalProduct = (globalMultipliersByMap.get(mapCode) ?? []).reduce((product, multiplier) => product * multiplier, 1);
+    const points = pointMultipliersByMap.get(mapCode);
+
+    if (!points || points.size === 0) {
+      if (globalProduct !== 1) effectiveValues.push(globalProduct);
+      continue;
+    }
+
+    for (const pointMultipliers of points.values()) {
+      effectiveValues.push(
+        pointMultipliers.reduce((product, multiplier) => product * multiplier, globalProduct),
+      );
     }
   }
 
   return uniqueSorted(
-    Array.from(multipliersByPoint.values()).map((value) => Number(value.toFixed(6))),
+    effectiveValues.map((value) => Number(value.toFixed(6))),
   );
 }
 
