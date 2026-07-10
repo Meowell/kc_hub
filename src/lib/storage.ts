@@ -3,16 +3,31 @@ import path from "node:path";
 
 const allowedImageTypes = new Map([
   ["image/jpeg", "jpg"],
+  ["image/jpg", "jpg"],
   ["image/png", "png"],
   ["image/webp", "webp"],
   ["image/gif", "gif"],
 ]);
 
-export async function saveUploadedImage(file: File) {
+export type UploadedImageFile = {
+  type: string;
+  size: number;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+export function isUploadedImageFile(value: unknown): value is UploadedImageFile {
+  if (!value || typeof value !== "object") return false;
+  const file = value as Partial<UploadedImageFile>;
+  return typeof file.type === "string"
+    && typeof file.size === "number"
+    && typeof file.arrayBuffer === "function";
+}
+
+export async function saveUploadedImage(file: UploadedImageFile) {
   const extension = allowedImageTypes.get(file.type);
 
   if (!extension) {
-    throw new Error("仅支持 jpg、png、webp、gif 图片");
+    throw new Error("仅支持 jpg、jpeg、png、webp、gif 图片");
   }
 
   if (file.size > 10 * 1024 * 1024) {

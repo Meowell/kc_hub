@@ -17,6 +17,7 @@ const FleetEditor = dynamic(
 );
 import { createMasterLookup } from "@/lib/master-data";
 import { createStrategyFormDefaults, filterRoutineCardsForInsert, STRATEGY_DEFAULT_TEMPLATE } from "@/lib/strategy-helpers";
+import { uploadImage } from "@/lib/upload-client";
 import { useMasterData } from "@/lib/use-master-data";
 import { useDirtyForm } from "@/components/common/dirty-guard";
 
@@ -208,15 +209,17 @@ export function StrategyEditor({
 
   function handleUpload() {
     const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
+    input.type = "file"; input.accept = "image/jpeg,image/png,image/webp,image/gif";
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      const data = new FormData(); data.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: data });
-      const p = await res.json();
-      if (!res.ok) { setErr(p.error ?? "上传失败"); return; }
-      insertAtCursor(`[img:${p.imageUrl}]`);
+      setErr("");
+      try {
+        const imageUrl = await uploadImage(file);
+        insertAtCursor(`[img:${imageUrl}]`);
+      } catch (error) {
+        setErr(error instanceof Error ? error.message : "上传失败");
+      }
     };
     input.click();
   }

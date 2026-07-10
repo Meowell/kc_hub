@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { uploadImage } from "@/lib/upload-client";
 
 export function AvatarEditor({ initialAvatarUrl, userName }: { initialAvatarUrl: string | null; userName: string }) {
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl);
@@ -14,11 +15,7 @@ export function AvatarEditor({ initialAvatarUrl, userName }: { initialAvatarUrl:
   async function handleUpload(file: File) {
     setUploading(true); setErr("");
     try {
-      const data = new FormData(); data.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: data });
-      const p = await res.json();
-      if (!res.ok) throw new Error(p.error ?? "上传失败");
-      const url = p.imageUrl as string;
+      const url = await uploadImage(file);
       // save avatarUrl to user
       const patchRes = await fetch("/api/auth/avatar", {
         method: "PATCH",
@@ -57,8 +54,8 @@ export function AvatarEditor({ initialAvatarUrl, userName }: { initialAvatarUrl:
           </span>
         )}
         <div className="min-w-0 flex-1 space-y-2">
-          <Input type="file" accept="image/*" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUpload(file); }} />
-          <p className="text-xs text-slate-500">支持 jpg / png / webp / gif，最大 10MB</p>
+          <Input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUpload(file); }} />
+          <p className="text-xs text-slate-500">支持 jpg / jpeg / png / webp / gif，最大 10MB</p>
           {uploading && <p role="status" className="text-sm text-blue-300">上传中…</p>}
           {err && <p role="alert" className="text-sm text-red-300">{err}</p>}
         </div>

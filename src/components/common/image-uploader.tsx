@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { uploadImage } from "@/lib/upload-client";
 
 export function ImageUploader({
   label, icon, initialUrl, apiEndpoint, fieldName,
@@ -19,11 +20,7 @@ export function ImageUploader({
   async function handleUpload(file: File) {
     setUploading(true); setErr("");
     try {
-      const data = new FormData(); data.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: data });
-      const p = await res.json();
-      if (!res.ok) throw new Error(p.error ?? "上传失败");
-      const newUrl = p.imageUrl as string;
+      const newUrl = await uploadImage(file);
       const patchRes = await fetch(apiEndpoint, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -59,8 +56,8 @@ export function ImageUploader({
           <span className="flex h-16 w-24 items-center justify-center rounded-md border border-border-base bg-slate-900/60 text-xs text-slate-400">无背景</span>
         )}
         <div className="min-w-0 flex-1 space-y-2">
-          <Input type="file" accept="image/*" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUpload(file); }} />
-          <p className="text-xs text-slate-500">支持 jpg / png / webp / gif，最大 10MB</p>
+          <Input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUpload(file); }} />
+          <p className="text-xs text-slate-500">支持 jpg / jpeg / png / webp / gif，最大 10MB</p>
           {uploading && <p role="status" className="text-sm text-blue-300">上传中…</p>}
           {err && <p role="alert" className="text-sm text-red-300">{err}</p>}
         </div>
