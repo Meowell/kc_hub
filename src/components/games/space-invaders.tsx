@@ -196,11 +196,18 @@ export function SpaceInvaders({ onScoreUpdate, onGameOver }: InvadersProps) {
         ctx.fillRect(sx, sy, 1.5, 1.5);
       }
 
-      // 🛩️ 敌机
-      ctx.font = "22px serif";
+      // 敌机
       for (const e of s.enemies) {
         if (!e.alive) continue;
-        ctx.fillText("🛩️", e.x - 13, e.y + 11);
+        ctx.fillStyle = "#f87171";
+        ctx.fillRect(e.x - 9, e.y - 3, 18, 6);
+        ctx.fillRect(e.x - 2, e.y - 9, 4, 18);
+        ctx.beginPath();
+        ctx.moveTo(e.x - 13, e.y + 5);
+        ctx.lineTo(e.x + 13, e.y + 5);
+        ctx.lineTo(e.x, e.y - 7);
+        ctx.closePath();
+        ctx.fill();
       }
 
       // 子弹
@@ -222,13 +229,14 @@ export function SpaceInvaders({ onScoreUpdate, onGameOver }: InvadersProps) {
         }
       }
 
-      // 🚢 艦娘（旋转朝上迎击）
-      ctx.font = "28px serif";
-      ctx.save();
-      ctx.translate(s.playerX, PLAYER_Y);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText("🚢", -14, 5);
-      ctx.restore();
+      // 玩家舰船
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.moveTo(s.playerX, PLAYER_Y - 16);
+      ctx.lineTo(s.playerX + 13, PLAYER_Y + 12);
+      ctx.lineTo(s.playerX - 13, PLAYER_Y + 12);
+      ctx.closePath();
+      ctx.fill();
 
       // 底部線
       ctx.strokeStyle = "#335";
@@ -238,10 +246,10 @@ export function SpaceInvaders({ onScoreUpdate, onGameOver }: InvadersProps) {
       // HUD
       ctx.fillStyle = "#fff";
       ctx.font = "bold 15px monospace";
-      ctx.fillText(`⏱ ${s.score}s`, 14, 26);
+      ctx.fillText(`时间 ${s.score}s`, 14, 26);
       ctx.font = "bold 12px monospace";
       ctx.fillText(`Wave ${s.wave}`, 14, 46);
-      ctx.fillText(`🛩️ ${aliveEnemies.length}`, 14, 64);
+      ctx.fillText(`敌机 ${aliveEnemies.length}`, 14, 64);
 
       animId = requestAnimationFrame(loop);
     };
@@ -299,7 +307,7 @@ export function SpaceInvaders({ onScoreUpdate, onGameOver }: InvadersProps) {
   return (
     <div className="flex flex-col items-center">
       <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} className="rounded-lg" style={{ maxWidth: "100%", height: "auto" }} />
-      <p className="mt-2 text-xs text-slate-500">← → 長押し移動 · 空格 対空砲火 · 🛩️ 敵機を撃墜！</p>
+      <p className="mt-2 text-xs text-slate-500">方向键长按移动 · 空格发射对空炮火 · 击落敌机</p>
     </div>
   );
 }

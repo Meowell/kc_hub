@@ -73,7 +73,7 @@ export function DailyCheckIn({ initialFood }: { initialFood: number }) {
           </p>
           {status.checkedIn && (
             <p className="mt-1 text-xs text-emerald-400">
-              今日已签到 +{status.todayReward} 🍙
+              今日已签到，粮食 +{status.todayReward}
             </p>
           )}
         </div>

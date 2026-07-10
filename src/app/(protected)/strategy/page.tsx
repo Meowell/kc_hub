@@ -2,7 +2,7 @@ import { ActivitySwitcher } from "@/components/common/activity-switcher";
 import { StrategyEditor } from "@/components/strategy/strategy-editor";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
-import { getVisibleContentWhere } from "@/lib/collaboration";
+import { canManageSharedResource, getVisibleContentWhere } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
 
 export default async function StrategyPage({
@@ -56,7 +56,7 @@ export default async function StrategyPage({
 
   return (
     <div className="space-y-6">
-      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
+      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} canCreateActivity={canManageSharedResource(user)} />
       <div>
         <p className="terminal-label text-xs font-semibold text-primary">TACTICAL NOTES / 攻略档案</p>
         <h1 className="mt-2 text-2xl font-bold text-white">{scope.label}攻略档案</h1>
@@ -65,6 +65,7 @@ export default async function StrategyPage({
         </p>
       </div>
       <StrategyEditor
+        key={scope.scopeKey}
         posts={serializablePosts}
         currentUserId={user.id}
         routineCards={serializableCards}

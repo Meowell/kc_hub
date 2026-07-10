@@ -190,6 +190,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
   } | null>(null);
   const pendingAssignmentRef = useRef<ShipStock | null>(null);
   const [mobileTagId, setMobileTagId] = useState("");
+  const [mobileView, setMobileView] = useState<"mine" | "overview" | "conflicts">("mine");
   const [mobileAction, setMobileAction] = useState<{
     uniqueId: string;
     shipId: number;
@@ -834,13 +835,30 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
       {/* Section 3a: Mobile current-user flow */}
       {currentUser && (
         <Panel
-          eyebrow="MOBILE LOCK"
-          title="我的锁船"
-          status={<StatusBadge variant={currentUser.shipDataRaw?.trim() ? "default" : "warning"}>{currentUser.shipDataRaw?.trim() ? "EDIT" : "NO DATA"}</StatusBadge>}
+          title={`${activityLabel}锁船`}
+          status={<StatusBadge variant={matrixSummary.conflictCount ? "danger" : "success"}>{matrixSummary.conflictCount ? `${matrixSummary.conflictCount} 个冲突` : "无冲突"}</StatusBadge>}
           className="md:hidden"
           dense
         >
-          {!currentUser.shipDataRaw?.trim() ? (
+          <div className="mb-4 grid grid-cols-3 gap-2" role="tablist" aria-label="移动端锁船视图">
+            {([
+              ["mine", "我的编辑"],
+              ["overview", "全员概览"],
+              ["conflicts", "冲突"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={mobileView === value}
+                onClick={() => setMobileView(value)}
+                className={mobileView === value ? "min-h-11 rounded-md border border-primary/60 bg-primary/15 px-2 text-sm font-semibold text-sky-100" : "min-h-11 rounded-md border border-border-base bg-slate-950/30 px-2 text-sm text-slate-300"}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {mobileView === "mine" && (!currentUser.shipDataRaw?.trim() ? (
             <p className="text-sm text-slate-500">当前账号尚未导入 noro6 舰船数据，导入后可在移动端按标签轻量编辑。</p>
           ) : (
             <div className="space-y-4">
@@ -861,8 +879,8 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                           : "border-border-base bg-slate-950/25 text-slate-300"
                       }`}
                     >
-                      <span className="block terminal-label">{tag.name}</span>
-                      <span className="mt-1 block text-[11px] text-slate-500">{count} SHIPS</span>
+                      <span className="block">{tag.name}</span>
+                      <span className="mt-1 block text-xs text-slate-400">{count} 艘</span>
                     </button>
                   );
                 })}
@@ -926,6 +944,51 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                   </button>
                 )}
               </div>
+            </div>
+          ))}
+          {mobileView === "overview" && (
+            <div className="space-y-2">
+              {initialUsers.map((user) => {
+                const assignedCount = activeTags.reduce((count, tag) => count + parseAssignments(plansByUser[user.userId]?.[tag.id] ?? "[]").filter(Boolean).length, 0);
+                return (
+                  <details key={user.userId} className="rounded-md border border-border-base bg-slate-950/30">
+                    <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold text-slate-100">
+                      <span className="truncate">{user.userName}</span>
+                      <span className="text-xs font-normal text-slate-400">{assignedCount} 艘</span>
+                    </summary>
+                    <div className="space-y-2 border-t border-border-base p-3">
+                      {activeTags.map((tag) => {
+                        const assignments = parseAssignments(plansByUser[user.userId]?.[tag.id] ?? "[]").filter((item): item is LockAssignment => !!item);
+                        return (
+                          <div key={tag.id} className="rounded-md bg-slate-900/70 px-3 py-2">
+                            <p className="text-sm font-semibold text-slate-200">{tag.name}</p>
+                            <p className="mt-1 text-sm text-slate-400">{assignments.length ? assignments.map((item) => getShipName(item.shipId)).join("、") : "尚未分配"}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          )}
+          {mobileView === "conflicts" && (
+            <div className="space-y-2">
+              {matrixSummary.conflicts.length === 0 ? (
+                <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-4 text-sm text-emerald-200">当前没有重复锁船冲突。</p>
+              ) : matrixSummary.conflicts.map((conflict) => (
+                <button
+                  key={`${conflict.userId}-${conflict.uniqueId}`}
+                  type="button"
+                  onClick={() => setMobileView("overview")}
+                  className="min-h-14 w-full rounded-md border border-red-500/35 bg-red-500/10 px-3 py-2 text-left"
+                >
+                  <span className="block text-sm font-semibold text-red-100">{getShipName(conflict.shipId)}</span>
+                  <span className="mt-1 block text-xs text-red-200/80">
+                    {initialUsers.find((user) => user.userId === conflict.userId)?.userName ?? "未知成员"} · {conflict.tagIds.map((tagId) => activeTags.find((tag) => tag.id === tagId)?.name ?? tagId).join(" / ")}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </Panel>

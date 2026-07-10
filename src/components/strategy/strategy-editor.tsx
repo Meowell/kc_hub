@@ -2,15 +2,23 @@
 
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import ReactMarkdown from "react-markdown";
+import Image from "next/image";
+import dynamic from "next/dynamic";
+import { Pencil, Trash2 } from "lucide-react";
+const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { FleetEditor } from "@/components/routine/fleet-editor";
+const FleetEditor = dynamic(
+  () => import("@/components/routine/fleet-editor").then((module) => module.FleetEditor),
+  { ssr: false, loading: () => <p role="status" className="p-4 text-sm text-slate-400">正在加载阵容预览…</p> },
+);
 import { createMasterLookup } from "@/lib/master-data";
 import { createStrategyFormDefaults, filterRoutineCardsForInsert, STRATEGY_DEFAULT_TEMPLATE } from "@/lib/strategy-helpers";
 import { useMasterData } from "@/lib/use-master-data";
+import { useDirtyForm } from "@/components/common/dirty-guard";
 
 type Post = {
   id: string; phaseName: string; title: string; content: string;
@@ -129,9 +137,9 @@ function renderMarkdown(
           }
           return <p {...props} className="text-sm text-slate-300 leading-7">{nodes}</p>;
         },
-        img: ({ src, alt }) => (
-          <img src={src} alt={alt ?? "截图"} className="my-2 max-w-full rounded-lg border border-slate-700/50" />
-        ),
+        img: ({ src, alt }) => src ? (
+          <Image src={src} alt={alt ?? "截图"} width={1200} height={800} unoptimized className="my-2 h-auto max-w-full rounded-lg border border-slate-700/50" />
+        ) : null,
         h1: ({ children }) => <h2 className="text-lg font-bold text-white mt-6 mb-2">{children}</h2>,
         h2: ({ children }) => <h3 className="text-base font-bold text-white mt-4 mb-1">{children}</h3>,
         h3: ({ children }) => <h4 className="text-sm font-semibold text-white mt-3 mb-1">{children}</h4>,
@@ -175,7 +183,12 @@ export function StrategyEditor({
   const [showRoutinePicker, setShowRoutinePicker] = useState(false);
   const [routineSearch, setRoutineSearch] = useState("");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorTab, setEditorTab] = useState<"edit" | "preview">("edit");
+  const [submitting, setSubmitting] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   function toggleExpand(cid: string) {
     setExpandedCards((prev) => { const next = new Set(prev); if (next.has(cid)) next.delete(cid); else next.add(cid); return next; });
@@ -220,26 +233,64 @@ export function StrategyEditor({
     insertAtCursor(STRATEGY_DEFAULT_TEMPLATE.trim());
   }
 
-  async function submit(e: FormEvent) {
-    e.preventDefault(); setErr("");
+  async function saveDraft() {
+    if (submitting) return false;
+    if (!f.phaseName.trim() || !f.title.trim() || !f.content.trim()) {
+      setErr("请填写阶段、标题和攻略正文。");
+      return false;
+    }
+    setErr("");
+    setSubmitting(true);
     const method = editingId ? "PATCH" : "POST";
     const body = JSON.stringify({ ...f, id: editingId || undefined, activityId, fleetImageUrl: null, airbaseImageUrl: null, routineCardIds: null });
-    const res = await fetch("/api/strategy", { method, headers: { "content-type": "application/json" }, body });
-    const d = await res.json();
-    if (!res.ok) { setErr(d.error ?? "发布失败"); return; }
-    setF(createStrategyFormDefaults()); setEditingId(null);
-    setRoutineSearch("");
-    router.refresh();
+    try {
+      const res = await fetch("/api/strategy", { method, headers: { "content-type": "application/json" }, body });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "发布失败");
+      setF(createStrategyFormDefaults()); setEditingId(null);
+      setRoutineSearch("");
+      setEditorOpen(false);
+      router.refresh();
+      return true;
+    } catch (submitError) {
+      setErr(submitError instanceof Error ? submitError.message : "发布失败，草稿已保留，请重试。");
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    void saveDraft();
   }
 
   function startEdit(post: Post) {
     setEditingId(post.id);
     setF({ phaseName: post.phaseName, title: post.title, content: post.content });
     setErr("");
+    setEditorOpen(true);
+    setEditorTab("edit");
+    requestAnimationFrame(() => {
+      titleRef.current?.focus();
+      titleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
-  function cancelEdit() { setEditingId(null); setF(createStrategyFormDefaults()); setErr(""); setRoutineSearch(""); }
-  async function del(id: string) { await fetch(`/api/strategy?id=${id}`, { method: "DELETE" }); router.refresh(); }
+  function cancelEdit() { setEditingId(null); setF(createStrategyFormDefaults()); setErr(""); setRoutineSearch(""); setEditorOpen(false); }
+  async function del(id: string) {
+    setErr("");
+    try {
+      const response = await fetch(`/api/strategy?id=${id}`, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "删除失败");
+      setPendingDeleteId(null);
+      router.refresh();
+    } catch (deleteError) {
+      setPendingDeleteId(null);
+      setErr(deleteError instanceof Error ? deleteError.message : "删除失败，请重试。");
+    }
+  }
 
   const grouped = useMemo(() => {
     const g: Record<string, Post[]> = {};
@@ -252,18 +303,27 @@ export function StrategyEditor({
     () => filterRoutineCardsForInsert(routineCards, routineSearch),
     [routineCards, routineSearch],
   );
+  useDirtyForm(editorOpen, saveDraft);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div>
+      {!editorOpen && (
+        <div className="mb-5 flex justify-end">
+          <Button type="button" onClick={() => { setEditorOpen(true); setEditorTab("edit"); requestAnimationFrame(() => titleRef.current?.focus()); }}>
+            新建攻略
+          </Button>
+        </div>
+      )}
+      <div className="flex flex-col gap-6 xl:flex-row">
       {/* Editor */}
-      <div className="w-full lg:w-[44rem] shrink-0 rounded-md border border-slate-700/50 bg-slate-800/70 p-5 shadow-lg shadow-black/10 h-fit lg:sticky lg:top-24">
+      {editorOpen && <div className="h-fit w-full shrink-0 rounded-md border border-slate-700/50 bg-slate-800/70 p-5 shadow-lg shadow-black/10 xl:sticky xl:top-24 xl:w-[min(44rem,52vw)]">
         <form onSubmit={submit} className="space-y-4">
           <div className="flex flex-col gap-1 mb-1">
-            <p className="terminal-label text-xs font-semibold text-primary">{editingId ? "EDIT TACTICAL NOTE" : "NEW TACTICAL NOTE"}</p>
             <h2 className="text-lg font-semibold text-white">{editingId ? "编辑攻略" : "建立战术档案"}</h2>
+            <p className="text-sm text-slate-400">{editingId ? "正在编辑已发布攻略，未保存内容会保留在本页。" : "填写阶段、标题和正文后发布。"}</p>
           </div>
           <Input value={f.phaseName} onChange={(e) => setF({ ...f, phaseName: e.target.value })} placeholder="阶段 (E2-3)" required />
-          <Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="标题" required />
+          <Input ref={titleRef} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="标题" required />
 
           <div className="grid grid-cols-3 gap-2">
             <button type="button" onClick={handleUpload}
@@ -280,12 +340,16 @@ export function StrategyEditor({
             </button>
           </div>
 
+          <div className="grid grid-cols-2 gap-2 xl:hidden" role="tablist" aria-label="攻略编辑视图">
+            <button type="button" role="tab" aria-selected={editorTab === "edit"} onClick={() => setEditorTab("edit")} className={editorTab === "edit" ? "min-h-11 rounded-md bg-primary/20 text-sky-100" : "min-h-11 rounded-md bg-slate-900/50 text-slate-300"}>编辑</button>
+            <button type="button" role="tab" aria-selected={editorTab === "preview"} onClick={() => setEditorTab("preview")} className={editorTab === "preview" ? "min-h-11 rounded-md bg-primary/20 text-sky-100" : "min-h-11 rounded-md bg-slate-900/50 text-slate-300"}>预览</button>
+          </div>
           <div className="grid gap-3 xl:grid-cols-2">
-            <textarea ref={textareaRef} className="min-h-72 font-mono text-sm rounded-sm border border-slate-600 bg-slate-900/80 text-slate-200 px-3 py-2 w-full outline-none focus:border-blue-500/50 placeholder:text-slate-600 resize-y"
+            <textarea ref={textareaRef} className={`${editorTab === "edit" ? "block" : "hidden"} min-h-72 w-full resize-y rounded-sm border border-slate-600 bg-slate-900/80 px-3 py-2 font-mono text-base text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500/50 xl:block xl:text-sm`}
               value={f.content}
               onChange={(e) => setF({ ...f, content: e.target.value })}
               placeholder="使用 Markdown 编写攻略，可插入 [img:url] 与 [card:id]" />
-            <Panel dense eyebrow="LIVE PREVIEW" title="实时预览" status={<StatusBadge variant="muted">MARKDOWN</StatusBadge>} className="min-h-72">
+            <Panel dense title="预览" status={<StatusBadge variant="muted">Markdown</StatusBadge>} className={`${editorTab === "preview" ? "block" : "hidden"} min-h-72 xl:block`}>
               <div className="max-h-80 overflow-y-auto pr-1">
                 {f.content.trim() ? (
                   renderMarkdown(f.content, routineById, shipNameById, toggleExpand, expandedCards)
@@ -314,22 +378,21 @@ export function StrategyEditor({
             </div>
           )}
 
-          <p className="text-[11px] text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-400 leading-relaxed">
             支持 Markdown、截图 token 和作业卡 token，光标定位后点击上方按钮插入。
           </p>
           {err && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{err}</div>}
           <div className="flex gap-2">
-            <Button type="submit" className="flex-1">{editingId ? "保存" : "发布攻略"}</Button>
-            {editingId && <Button type="button" variant="ghost" onClick={cancelEdit} className="text-xs text-slate-400">取消</Button>}
+            <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? "保存中…" : editingId ? "保存" : "发布攻略"}</Button>
+            <Button type="button" variant="ghost" onClick={cancelEdit} className="text-xs text-slate-300">取消</Button>
           </div>
         </form>
-      </div>
+      </div>}
 
       {/* Posts */}
       <div className="flex-1 min-w-0 space-y-6">
         {posts.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-700/50 bg-slate-800/40 py-16 text-center">
-            <p className="text-4xl mb-3">📭</p>
             <p className="text-slate-500">暂无攻略贴，发布第一条活动攻略吧</p>
           </div>
         ) : (
@@ -344,17 +407,17 @@ export function StrategyEditor({
                   const isOwner = post.user.id === currentUserId;
                   return (
                     <div key={post.id} className="rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-5 shadow-lg shadow-black/10 group hover:border-slate-600/50 transition-colors">
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex items-center gap-2">
-                          {post.user.avatarUrl ? <img src={post.user.avatarUrl} alt={post.user.name} className="w-5 h-5 rounded-full object-cover" /> : null}
+                          {post.user.avatarUrl ? <Image src={post.user.avatarUrl} alt={post.user.name} width={20} height={20} unoptimized className="h-5 w-5 rounded-full object-cover" /> : null}
                           <h3 className="text-lg font-semibold text-white">{post.title}</h3>
                         </div>
-                        <div className="flex flex-wrap items-center justify-end gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all">
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                           <span className="text-xs text-slate-500">{post.user.name} · {new Date(post.createdAt).toLocaleDateString("zh-CN")}</span>
                           {isOwner && (
                             <>
-                              <button type="button" onClick={() => startEdit(post)} className="text-slate-500 hover:text-blue-400 text-xs">✏️</button>
-                              <button type="button" onClick={() => del(post.id)} className="text-slate-500 hover:text-red-400 text-xs">🗑️</button>
+                              <button type="button" onClick={() => startEdit(post)} aria-label={`编辑${post.title}`} className="inline-flex h-11 w-11 items-center justify-center rounded-md text-slate-300 hover:bg-slate-700 hover:text-blue-300"><Pencil className="h-4 w-4" /></button>
+                              <button type="button" onClick={() => setPendingDeleteId(post.id)} aria-label={`删除${post.title}`} className="inline-flex h-11 w-11 items-center justify-center rounded-md text-slate-300 hover:bg-red-950/40 hover:text-red-300"><Trash2 className="h-4 w-4" /></button>
                             </>
                           )}
                         </div>
@@ -370,6 +433,17 @@ export function StrategyEditor({
           ))
         )}
       </div>
+      </div>
+      <AlertDialog open={!!pendingDeleteId} onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>删除这篇攻略？</AlertDialogTitle>
+          <AlertDialogDescription>删除后无法恢复。网络失败时页面会保留并显示错误。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setPendingDeleteId(null)}>取消</AlertDialogCancel>
+          <AlertDialogAction variant="danger" onClick={() => pendingDeleteId && void del(pendingDeleteId)}>确认删除</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
     </div>
   );
 }

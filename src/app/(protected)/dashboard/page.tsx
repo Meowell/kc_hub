@@ -2,6 +2,7 @@ import { ShipDataCenter } from "@/components/ship-data/ship-data-center";
 import { UpdateMastersButton } from "@/components/ship-data/update-masters-button";
 import { readActivityOverview } from "@/lib/activity-overview-storage";
 import { requireCurrentUser } from "@/lib/auth";
+import { parseAssignments } from "@/lib/lock-plan-helpers";
 import { prisma } from "@/lib/prisma";
 
 export default async function DashboardPage() {
@@ -11,14 +12,28 @@ export default async function DashboardPage() {
     orderBy: [{ status: "asc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
     select: { id: true, name: true },
   });
-  const lockTags = activity
-    ? await prisma.lockTag.findMany({
-        where: { activityId: activity.id, isActive: true },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, name: true, colorClass: true, sortOrder: true },
-      })
-    : [];
-  const activityOverview = await readActivityOverview(activity?.id, activity?.name ?? "未选择活动");
+  const [lockTags, lockPlans, activityOverview] = await Promise.all([
+    activity
+      ? prisma.lockTag.findMany({
+          where: { activityId: activity.id, isActive: true },
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, name: true, colorClass: true, sortOrder: true },
+        })
+      : [],
+    activity
+      ? prisma.lockPlan.findMany({
+          where: { userId: user.id, tag: { activityId: activity.id, isActive: true } },
+          select: { tagId: true, assignedData: true },
+        })
+      : [],
+    readActivityOverview(activity?.id, activity?.name ?? "暂无活动"),
+  ]);
+  const lockAssignmentsByTagId = Object.fromEntries(
+    lockPlans.map((plan) => [
+      plan.tagId,
+      parseAssignments(plan.assignedData).flatMap((assignment) => assignment ? [assignment.uniqueId] : []),
+    ]),
+  );
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -37,8 +52,9 @@ export default async function DashboardPage() {
         initialShipData={user.shipData ?? ""}
         initialLastShipDataUpdatedAt={user.lastShipDataUpdatedAt?.toISOString() ?? null}
         currentUserName={user.name}
-        currentActivityName={activity?.name ?? "未选择活动"}
+        currentActivityName={activity?.name ?? "暂无活动"}
         lockTags={lockTags}
+        lockAssignmentsByTagId={lockAssignmentsByTagId}
         activityOverview={activityOverview}
       />
     </div>

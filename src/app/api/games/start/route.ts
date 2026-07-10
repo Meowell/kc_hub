@@ -9,7 +9,7 @@ export async function POST() {
 
     // 检查粮食是否足够
     if (user.food < 1) {
-      return NextResponse.json({ error: "🍙 战斗粮食不足！请先签到获取粮食" }, { status: 403 });
+      return NextResponse.json({ error: "战斗粮食不足，请先签到获取粮食" }, { status: 403 });
     }
 
     // 扣除 1 个粮食

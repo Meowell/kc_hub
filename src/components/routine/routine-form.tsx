@@ -1,13 +1,17 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FleetEditor } from "@/components/routine/fleet-editor";
 import { createMasterLookup } from "@/lib/master-data";
 import { useMasterData } from "@/lib/use-master-data";
+import { useDirtyForm } from "@/components/common/dirty-guard";
+import { shouldFlushLatestSnapshot } from "@/lib/frontend-ux";
 
 /* ── Fleet preview helper ── */
 
@@ -15,8 +19,8 @@ function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
   const [show, setShow] = useState(false);
   if (!show) {
     return (
-      <Button type="button" variant="secondary" onClick={() => setShow(true)} className="text-xs h-7 px-2.5">
-        🗑️
+      <Button type="button" variant="secondary" onClick={() => setShow(true)} className="px-3" aria-label="删除作业卡">
+        <Trash2 className="h-4 w-4" aria-hidden="true" />
       </Button>
     );
   }
@@ -170,37 +174,109 @@ export function RoutineRecords({
   const [editingRecord, setEditingRecord] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [hideEditor, setHideEditor] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
+  const pendingFleetRef = useRef<string | null>(null);
+  const savedFleetRef = useRef<string | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveInFlightRef = useRef(false);
   const isViewer = viewingRecord && !editingRecord;
   const showFleetEditor = editing || (viewingRecord && !hideEditor);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  useEffect(() => () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+  }, []);
+
+  async function flushFleetAutoSave(record = viewingRecord) {
+    if (!record || !shouldFlushLatestSnapshot(pendingFleetRef.current, savedFleetRef.current, autoSaveInFlightRef.current)) return;
+    const snapshot = pendingFleetRef.current;
+    if (!snapshot) return;
+    autoSaveInFlightRef.current = true;
+    setAutoSaveStatus("pending");
+    try {
+      const response = await fetch("/api/routine", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: record.id,
+          activityId,
+          seaArea: record.seaArea,
+          missionName: record.missionName,
+          airControl: record.airControl,
+          note: record.note,
+          imageUrl: record.imageUrl,
+          fleetData: snapshot,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "自动保存失败");
+      savedFleetRef.current = snapshot;
+      setAutoSaveStatus("success");
+    } catch (saveError) {
+      setErr(saveError instanceof Error ? saveError.message : "自动保存失败，请重试。");
+      setAutoSaveStatus("error");
+    } finally {
+      autoSaveInFlightRef.current = false;
+      if (pendingFleetRef.current !== snapshot) {
+        autoSaveTimerRef.current = setTimeout(() => { void flushFleetAutoSave(record); }, 0);
+      }
+    }
+  }
+
+  function scheduleFleetAutoSave(json: string, record: Record) {
+    pendingFleetRef.current = json;
+    setAutoSaveStatus("pending");
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { void flushFleetAutoSave(record); }, 650);
+  }
+
+  async function saveRecord() {
     setMsg("");
     setErr("");
+    if (submitting) return false;
+    if (!f.seaArea.trim() || !f.missionName.trim()) {
+      setErr("请填写海域和任务名。");
+      return false;
+    }
+    setSubmitting(true);
     const isUpdate = !!editingRecordId;
     const body = editingRecordId
       ? { id: editingRecordId, ...f, activityId, fleetData: fleetDataJson }
       : { ...f, activityId, fleetData: fleetDataJson };
-    const res = await fetch("/api/routine", {
-      method: isUpdate ? "PATCH" : "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const d = await res.json();
-    if (!res.ok) {
-      setErr(d.error ?? "保存失败");
-      return;
+    try {
+      const res = await fetch("/api/routine", {
+        method: isUpdate ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "保存失败");
+      setF({ seaArea: "", missionName: "", note: "", imageUrl: "" });
+      setEditing(false);
+      setComposerOpen(false);
+      setFleetDataJson(null);
+      setViewingRecord(null);
+      setEditingRecord(false);
+      setEditingRecordId(null);
+      setHideEditor(false);
+      setMsg(isUpdate ? "阵容已更新" : "阵容已分享");
+      router.refresh();
+      return true;
+    } catch (submitError) {
+      setErr(submitError instanceof Error ? submitError.message : "保存失败，请重试。");
+      return false;
+    } finally {
+      setSubmitting(false);
     }
-    setF({ seaArea: "", missionName: "", note: "", imageUrl: "" });
-    setEditing(false);
-    setFleetDataJson(null);
-    setViewingRecord(null);
-    setEditingRecord(false);
-    setEditingRecordId(null);
-    setHideEditor(false);
-    setMsg(isUpdate ? "阵容已更新 ✅" : "阵容已分享 ✅");
-    router.refresh();
   }
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    void saveRecord();
+  }
+
+  useDirtyForm(composerOpen || !!editingRecordId, saveRecord);
 
   function goToPage(page: number) {
     if (page < 1 || page > totalPages) return;
@@ -208,12 +284,17 @@ export function RoutineRecords({
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div>
+      {!composerOpen && !viewingRecord && (
+        <Button type="button" className="mb-4 w-full lg:hidden" onClick={() => { setComposerOpen(true); setEditing(true); }}>
+          新建作业卡
+        </Button>
+      )}
+      <div className="flex flex-col gap-6 lg:flex-row">
       {/* Upload Form */}
-      <div className="w-full lg:w-96 shrink-0 rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-6 shadow-lg shadow-black/10">
+      <div className={`${composerOpen || viewingRecord ? "block" : "hidden"} w-full shrink-0 rounded-xl border border-slate-700/50 bg-slate-800/70 p-5 shadow-lg shadow-black/10 lg:block lg:w-96 lg:p-6`}>
         <form onSubmit={submit} className="space-y-4">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl">📤</span>
             <h2 className="text-lg font-semibold text-white">阵容编辑</h2>
           </div>
           <Input
@@ -257,9 +338,9 @@ export function RoutineRecords({
               }}
               className="flex-1"
             >
-              {viewingRecord || editingRecordId ? "⚙️ 编辑阵容" : "➕ 新建阵容"}
+              {viewingRecord || editingRecordId ? "编辑阵容" : "新建阵容"}
             </Button>
-            <Button type="submit" className="flex-1">{editingRecordId ? "📤 更新" : "📤 分享"}</Button>
+            <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? "保存中…" : editingRecordId ? "更新" : "分享"}</Button>
           </div>
         </form>
       </div>
@@ -272,28 +353,22 @@ export function RoutineRecords({
             initialFleetData={viewingRecord?.fleetData ?? undefined}
             onFleetChange={(json) => {
               setFleetDataJson(json);
-              // Auto-save when editing existing record
               if (editingRecord && viewingRecord) {
-                fetch("/api/routine", {
-                  method: "PATCH",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    id: viewingRecord.id,
-                    activityId,
-                    seaArea: viewingRecord.seaArea,
-                    missionName: viewingRecord.missionName,
-                    airControl: viewingRecord.airControl,
-                    note: viewingRecord.note,
-                    imageUrl: viewingRecord.imageUrl,
-                    fleetData: json,
-                  }),
-                }).catch(() => {});
+                scheduleFleetAutoSave(json, viewingRecord);
               }
             }}
             readOnly={isViewer ?? undefined}
             title={viewingRecord ? `${viewingRecord.seaArea} / ${viewingRecord.missionName}` : undefined}
             onBack={() => { setViewingRecord(null); setEditingRecord(false); setHideEditor(false); }}
           />
+          {editingRecord && (
+            <div className="mt-3 flex items-center justify-between gap-3" aria-live="polite">
+              <p className={autoSaveStatus === "error" ? "text-sm text-red-300" : "text-sm text-slate-400"}>
+                {autoSaveStatus === "pending" ? "保存中…" : autoSaveStatus === "success" ? "已保存最新阵容" : autoSaveStatus === "error" ? "保存失败" : ""}
+              </p>
+              {autoSaveStatus === "error" && <Button type="button" variant="outline" onClick={() => void flushFleetAutoSave()}>重试</Button>}
+            </div>
+          )}
         </div>
         {!showFleetEditor && (
           <RecordsList
@@ -308,12 +383,16 @@ export function RoutineRecords({
             currentUserId={currentUserId}
             onViewRecord={(r) => { setViewingRecord(r); setEditingRecord(false); setEditingRecordId(null); setHideEditor(false); }}
             onEditRecord={(r) => {
+              setComposerOpen(true);
               setViewingRecord(r);
               setEditingRecord(true);
               setEditingRecordId(r.id);
               setHideEditor(false);
               setF({ seaArea: r.seaArea, missionName: r.missionName, note: r.note ?? "", imageUrl: r.imageUrl ?? "" });
               setFleetDataJson(r.fleetData);
+              pendingFleetRef.current = r.fleetData;
+              savedFleetRef.current = r.fleetData;
+              setAutoSaveStatus("idle");
             }}
             onDeleteRecord={async (r) => {
               await fetch(`/api/routine?id=${r.id}`, { method: "DELETE" });
@@ -332,6 +411,7 @@ export function RoutineRecords({
             </button>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -376,7 +456,6 @@ function RecordsList({
     <div className="space-y-4">
       {records.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-700/50 bg-slate-800/40 py-16 text-center">
-          <p className="text-4xl mb-3">📭</p>
           <p className="text-slate-500">
             {search || seaArea || uploaderId
               ? "没有匹配的记录，试试调整筛选条件"
@@ -398,7 +477,7 @@ function RecordsList({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-white">
@@ -411,22 +490,22 @@ function RecordsList({
                         </p>
                         <span className="text-slate-600">·</span>
                         {r.user.avatarUrl && (
-                          <img src={r.user.avatarUrl} alt={r.user.name} className="w-6 h-6 rounded-full object-cover" />
+                          <Image src={r.user.avatarUrl} alt={r.user.name} width={24} height={24} unoptimized className="h-6 w-6 rounded-full object-cover" />
                         )}
                         <span className="text-sm text-emerald-500/80">
                           {r.user.name}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                       {r.fleetData && (
                         <Button
                           type="button"
                           variant="secondary"
                           onClick={() => onViewRecord(r)}
-                          className="text-xs h-7 px-2.5"
+                          className="px-3 text-xs"
                         >
-                          👁️ 查看
+                          <Eye className="h-4 w-4" aria-hidden="true" />查看
                         </Button>
                       )}
                       {r.fleetData && r.user.id === currentUserId && (
@@ -434,9 +513,9 @@ function RecordsList({
                           type="button"
                           variant="secondary"
                           onClick={() => onEditRecord(r)}
-                          className="text-xs h-7 px-2.5"
+                          className="px-3 text-xs"
                         >
-                          ✏️ 编辑
+                          <Pencil className="h-4 w-4" aria-hidden="true" />编辑
                         </Button>
                       )}
                       {r.user.id === currentUserId && (
@@ -453,11 +532,13 @@ function RecordsList({
                   {r.fleetData && <FleetPreview fleetData={r.fleetData} shipNameById={shipNameById} />}
                   {r.imageUrl && (
                     <div className="mt-4 rounded-lg border border-slate-700/50 overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <Image
                         src={r.imageUrl}
                         alt={r.missionName}
-                        className="w-full max-h-80 object-contain bg-slate-900"
+                        width={1200}
+                        height={800}
+                        unoptimized
+                        className="h-auto max-h-80 w-full object-contain bg-slate-900"
                       />
                     </div>
                   )}
@@ -467,19 +548,19 @@ function RecordsList({
           ))}
 
           {/* Pagination */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-slate-500">
               共 <span className="text-slate-300 font-medium">{totalCount}</span>{" "}
               条记录，第{" "}
               <span className="text-slate-300 font-medium">{currentPage}</span>/
               {totalPages} 页
             </p>
-            <div className="flex items-center gap-1.5">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-1.5">
               <button
                 type="button"
                 onClick={() => goToPage(1)}
                 disabled={currentPage <= 1}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700/50 bg-slate-800/70 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="hidden min-h-11 rounded-lg border border-slate-700/50 bg-slate-800/70 px-2.5 py-1.5 text-xs font-medium text-slate-400 transition-all hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:block"
               >
                 «
               </button>
@@ -487,18 +568,18 @@ function RecordsList({
                 type="button"
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage <= 1}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700/50 bg-slate-800/70 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="min-h-11 rounded-lg border border-slate-700/50 bg-slate-800/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition-all hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
               >
                 ‹ 上一页
               </button>
 
-              {renderPageNumbers(currentPage, totalPages, goToPage)}
+              <div className="hidden items-center gap-1.5 sm:flex">{renderPageNumbers(currentPage, totalPages, goToPage)}</div>
 
               <button
                 type="button"
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage >= totalPages}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700/50 bg-slate-800/70 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="min-h-11 rounded-lg border border-slate-700/50 bg-slate-800/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition-all hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
               >
                 下一页 ›
               </button>
@@ -506,7 +587,7 @@ function RecordsList({
                 type="button"
                 onClick={() => goToPage(totalPages)}
                 disabled={currentPage >= totalPages}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700/50 bg-slate-800/70 text-slate-400 hover:text-white hover:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="hidden min-h-11 rounded-lg border border-slate-700/50 bg-slate-800/70 px-2.5 py-1.5 text-xs font-medium text-slate-400 transition-all hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:block"
               >
                 »
               </button>

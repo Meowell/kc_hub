@@ -38,6 +38,7 @@ function loadMasterData(force = false) {
 export function useMasterData() {
   const [masterData, setMasterData] = useState<MasterData>(cachedMasterData ?? emptyMasterData);
   const [error, setError] = useState<Error | null>(null);
+  const [isLoading, setIsLoading] = useState(!cachedMasterData);
 
   useEffect(() => {
     let active = true;
@@ -48,10 +49,12 @@ export function useMasterData() {
         if (active) {
           setMasterData(data);
           setError(null);
+          setIsLoading(false);
         }
       } catch (err) {
         if (active) {
           setError(err instanceof Error ? err : new Error("master data request failed"));
+          setIsLoading(false);
         }
       }
     }
@@ -72,6 +75,7 @@ export function useMasterData() {
   return {
     masterData,
     error,
+    isLoading,
     isRuntime: masterData.source === "runtime",
   };
 }

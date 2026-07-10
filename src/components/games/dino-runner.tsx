@@ -137,20 +137,44 @@ export function DinoRunner({ onScoreUpdate, onGameOver }: DinoRunnerProps) {
       ctx.fillStyle = "#333355";
       for (const mx of groundMarks) ctx.fillRect(mx, GROUND_Y + 4, 3, 10);
 
-      // 機雷 💣
+      // 水雷
       for (const obs of s.obstacles) {
-        ctx.font = `${obs.h}px serif`;
-        ctx.fillText("💣", obs.x, GROUND_Y);
+        const centerX = obs.x + obs.w / 2;
+        const centerY = GROUND_Y - obs.h / 2;
+        const radius = Math.min(obs.w, obs.h) * 0.36;
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.strokeStyle = "#f87171";
+        ctx.lineWidth = 3;
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+          ctx.lineTo(Math.cos(angle) * radius * 1.55, Math.sin(angle) * radius * 1.55);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "#991b1b";
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
 
-      // 玩家 🚢（翻转朝右跑）
-      ctx.font = "34px serif";
+      // 玩家舰船
       const shipAngle = s.grounded ? 0 : Math.min(0.3, Math.max(-0.15, s.dinoVy * 0.02));
       ctx.save();
       ctx.translate(DINO_X + 17, s.dinoY + 17);
       ctx.rotate(shipAngle);
-      ctx.scale(-1, 1); // 🚢 默认朝左，水平翻转后朝右
-      ctx.fillText("🚢", -17, 11);
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.moveTo(-16, 8);
+      ctx.lineTo(16, 8);
+      ctx.lineTo(10, 15);
+      ctx.lineTo(-10, 15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#bae6fd";
+      ctx.fillRect(-6, -2, 12, 10);
+      ctx.fillRect(1, -10, 3, 8);
       ctx.restore();
 
       // HUD
@@ -233,7 +257,7 @@ export function DinoRunner({ onScoreUpdate, onGameOver }: DinoRunnerProps) {
     <div className="flex flex-col items-center">
       <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} className="rounded-lg cursor-pointer" style={{ maxWidth: "100%", height: "auto" }} />
       <p className="mt-2 text-xs text-slate-500">
-        長押し大跳 · 軽触小跳 · 💣 機雷を回避！
+        长按高跳 · 轻触短跳 · 避开水雷
       </p>
     </div>
   );

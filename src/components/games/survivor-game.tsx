@@ -33,7 +33,6 @@ interface Torpedo {
 
 interface UpgradeOption {
   label: string;
-  icon: string;
   apply: () => void;
 }
 
@@ -69,11 +68,11 @@ export function SurvivorGame({ onScoreUpdate, onGameOver }: SurvivorProps) {
   const generateUpgrades = useCallback((): UpgradeOption[] => {
     const s = stateRef.current;
     const options: UpgradeOption[] = [
-      { label: "移速+", icon: "💨", apply: () => { s.playerSpeed = Math.min(6, s.playerSpeed + 0.5); } },
-      { label: "射速+", icon: "⚡", apply: () => { s.fireRate = Math.min(3.5, s.fireRate + 0.4); } },
-      { label: "火力+", icon: "💥", apply: () => { s.torpedoDamage += 20; } },
-      { label: "射程+", icon: "🎯", apply: () => { s.torpedoRange = Math.min(400, s.torpedoRange + 50); } },
-      { label: "清场", icon: "💣", apply: () => { s.enemies = []; } },
+      { label: "移动速度 +", apply: () => { s.playerSpeed = Math.min(6, s.playerSpeed + 0.5); } },
+      { label: "射击速度 +", apply: () => { s.fireRate = Math.min(3.5, s.fireRate + 0.4); } },
+      { label: "鱼雷火力 +", apply: () => { s.torpedoDamage += 20; } },
+      { label: "鱼雷射程 +", apply: () => { s.torpedoRange = Math.min(400, s.torpedoRange + 50); } },
+      { label: "清除敌舰", apply: () => { s.enemies = []; } },
     ];
     return options.sort(() => Math.random() - 0.5).slice(0, 3);
   }, []);
@@ -238,35 +237,60 @@ export function SurvivorGame({ onScoreUpdate, onGameOver }: SurvivorProps) {
       for (let gy = 0; gy < CANVAS_H; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(CANVAS_W, gy); ctx.stroke(); }
 
       // 鱼雷
-      ctx.font = "14px serif";
       for (const torp of s.torpedoes) {
         const angle = Math.atan2(torp.vy, torp.vx);
         ctx.save();
         ctx.translate(torp.x, torp.y);
         ctx.rotate(angle);
-        ctx.fillText("💣", -7, 7);
+        ctx.fillStyle = "#fbbf24";
+        ctx.fillRect(-7, -2, 12, 4);
+        ctx.beginPath();
+        ctx.moveTo(7, 0);
+        ctx.lineTo(3, -4);
+        ctx.lineTo(3, 4);
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
       }
 
       // 经验球
-      ctx.font = "14px serif";
-      for (const orb of s.orbs) ctx.fillText("💎", orb.x - 7, orb.y + 7);
+      ctx.fillStyle = "#67e8f9";
+      for (const orb of s.orbs) {
+        ctx.save();
+        ctx.translate(orb.x, orb.y);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-5, -5, 10, 10);
+        ctx.restore();
+      }
 
       // 深海棲艦
-      ctx.font = "22px serif";
-      for (const e of s.enemies) ctx.fillText("👻", e.x - 11, e.y + 11);
+      ctx.fillStyle = "#a855f7";
+      for (const e of s.enemies) {
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#e9d5ff";
+        ctx.fillRect(e.x - 5, e.y - 2, 3, 3);
+        ctx.fillRect(e.x + 2, e.y - 2, 3, 3);
+        ctx.fillStyle = "#a855f7";
+      }
 
       // 玩家
-      ctx.font = "32px serif";
-      ctx.fillText("🚢", s.playerX - 16, s.playerY + 16);
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.moveTo(s.playerX, s.playerY - 16);
+      ctx.lineTo(s.playerX + 12, s.playerY + 12);
+      ctx.lineTo(s.playerX - 12, s.playerY + 12);
+      ctx.closePath();
+      ctx.fill();
 
       // HUD
       ctx.fillStyle = "#fff";
       ctx.font = "bold 15px monospace";
-      ctx.fillText(`⏱ ${s.score}s`, 16, 28);
+      ctx.fillText(`时间 ${s.score}s`, 16, 28);
       ctx.fillText(`Lv.${s.level}`, 16, 50);
       ctx.font = "bold 11px monospace";
-      ctx.fillText(`💣x${s.torpedoDamage}`, 16, 68);
+      ctx.fillText(`火力 ${s.torpedoDamage}`, 16, 68);
 
       // 经验条
       const barW = 150, barH = 7, barX = CANVAS_W - barW - 16, barY = 18;
@@ -341,13 +365,13 @@ export function SurvivorGame({ onScoreUpdate, onGameOver }: SurvivorProps) {
   return (
     <div className="flex flex-col items-center relative">
       <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} className="rounded-lg" style={{ maxWidth: "100%", height: "auto" }} />
-      <p className="mt-2 text-xs text-slate-500">WASD 移動 · 酸素魚雷自動発射 · 💎 を集めて強化</p>
+      <p className="mt-2 text-xs text-slate-500">WASD 移动 · 氧气鱼雷自动发射 · 收集晶体强化</p>
       {selecting && upgrades.length > 0 && (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-3 z-10">
           {upgrades.map((u, i) => (
             <button key={i} onClick={() => pickUpgrade(i)}
               className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white text-sm hover:bg-slate-700 transition-colors shadow-lg">
-              {u.icon} {u.label}<span className="ml-2 text-xs text-slate-500">[{i + 1}]</span>
+              {u.label}<span className="ml-2 text-xs text-slate-500">[{i + 1}]</span>
             </button>
           ))}
         </div>

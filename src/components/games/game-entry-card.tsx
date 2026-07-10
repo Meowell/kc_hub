@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Crosshair, Gamepad2, Plane, Ship, type LucideIcon } from "lucide-react";
+import dynamic from "next/dynamic";
 import { GameModal } from "./game-modal";
-import { DinoRunner } from "./dino-runner";
-import { SurvivorGame } from "./survivor-game";
-import { SpaceInvaders } from "./space-invaders";
+
+const DinoRunner = dynamic(() => import("./dino-runner").then((module) => module.DinoRunner), { ssr: false });
+const SurvivorGame = dynamic(() => import("./survivor-game").then((module) => module.SurvivorGame), { ssr: false });
+const SpaceInvaders = dynamic(() => import("./space-invaders").then((module) => module.SpaceInvaders), { ssr: false });
 
 type Leader = { name: string; score: number };
 type GameType = "dino" | "survivor" | "invaders";
@@ -12,15 +15,15 @@ type GameType = "dino" | "survivor" | "invaders";
 interface GameConfig {
   type: GameType;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   desc: string;
   border: string;
 }
 
 const gameConfigs: GameConfig[] = [
-  { type: "dino", label: "🚢 鼠輸送", icon: "💣", desc: "機雷を回避！鼠輸送作戦", border: "border-l-blue-500" },
-  { type: "survivor", label: "⚓ 艦隊決戦", icon: "💥", desc: "WASD移動 酸素魚雷で深海棲艦を迎撃", border: "border-l-purple-500" },
-  { type: "invaders", label: "🛩️ 対空射撃", icon: "🎯", desc: "← → 移動 対空砲火で敵機撃墜", border: "border-l-emerald-500" },
+  { type: "dino", label: "鼠输送", icon: Ship, desc: "点击、触摸或键盘操作，避开水雷。", border: "border-l-blue-500" },
+  { type: "survivor", label: "舰队决战", icon: Crosshair, desc: "使用键盘移动并迎击深海舰队。", border: "border-l-purple-500" },
+  { type: "invaders", label: "对空射击", icon: Plane, desc: "使用方向键移动并击落敌机。", border: "border-l-emerald-500" },
 ];
 
 interface GameEntryCardProps {
@@ -30,6 +33,7 @@ interface GameEntryCardProps {
 
 export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
   const config = gameConfigs.find((c) => c.type === gameType)!;
+  const GameIcon = config.icon;
   const [top3, setTop3] = useState<Leader[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -40,6 +44,12 @@ export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
   const [gameOver, setGameOver] = useState(false);
   const [refunded, setRefunded] = useState(false);
   const [newRecord, setNewRecord] = useState(false);
+  const [unsupportedTouch, setUnsupportedTouch] = useState(false);
+
+  useEffect(() => {
+    const coarseOnly = window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(any-pointer: fine)").matches;
+    setUnsupportedTouch(coarseOnly && gameType !== "dino");
+  }, [gameType]);
 
   // 加载排行榜
   const fetchLeaderboard = useCallback(async () => {
@@ -61,6 +71,10 @@ export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
   // 开始游戏
   const handleStart = async () => {
     setError("");
+    if (unsupportedTouch) {
+      setError("该游戏暂仅支持键盘设备，不会扣除粮食。");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/games/start", { method: "POST" });
@@ -146,7 +160,7 @@ export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
       <div className={`surface-panel-subtle rounded-md border-l-4 p-5 ${config.border}`}>
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium text-slate-400">{config.label}</p>
-          <span className="text-2xl">{config.icon}</span>
+          <GameIcon className="h-6 w-6 text-primary" aria-hidden="true" />
         </div>
 
         {/* 排行榜 Top 3 */}
@@ -157,7 +171,7 @@ export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
             top3.map((r, i) => (
               <div key={i} className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">
-                  {["🥇", "🥈", "🥉"][i]} {r.name}
+                  第 {i + 1} 名 · {r.name}
                 </span>
                 <span className="text-slate-500 tabular-nums font-mono">{r.score}s</span>
               </div>
@@ -171,10 +185,11 @@ export function GameEntryCard({ gameType, initialFood }: GameEntryCardProps) {
 
         <button
           onClick={handleStart}
-          disabled={loading}
-          className="mt-3 w-full rounded-md border border-primary/45 bg-primary/15 py-2 text-sm font-medium text-sky-100 transition-colors hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={loading || unsupportedTouch}
+          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary/45 bg-primary/15 py-2 text-sm font-medium text-sky-100 transition-colors hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "..." : "🎮 开始 (🍙 -1)"}
+          <Gamepad2 className="h-4 w-4" aria-hidden="true" />
+          {loading ? "准备中…" : unsupportedTouch ? "需要键盘操作" : "开始（粮食 -1）"}
         </button>
 
         <p className="mt-1.5 text-xs text-slate-600 text-center">{config.desc}</p>

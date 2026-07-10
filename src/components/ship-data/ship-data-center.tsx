@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Ship, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
 import { createMasterLookup } from "@/lib/master-data";
 import { parseNoro6Data, type Noro6Preview } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
+import { filterRowsByLockTag } from "@/lib/frontend-ux";
 
 function baseMin(raw: number | number[] | undefined): number {
   if (Array.isArray(raw)) return raw[0] ?? 0;
@@ -73,6 +75,56 @@ type DashboardLockTag = {
   sortOrder: number;
 };
 
+type ViewerOption = { id: string; name: string };
+
+function ViewerDropdown({
+  currentUserName,
+  viewerId,
+  loading,
+  onSwitch,
+}: {
+  currentUserName: string;
+  viewerId: string | null;
+  loading: boolean;
+  onSwitch: (uid: string | null) => void;
+}) {
+  const [users, setUsers] = useState<ViewerOption[]>([]);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/users/list", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("无法加载用户列表");
+        return response.json();
+      })
+      .then((data: ViewerOption[]) => setUsers(data))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setLoadError(true);
+      });
+    return () => controller.abort();
+  }, []);
+
+  return (
+    <div className="min-w-0">
+      <label htmlFor="ship-viewer" className="sr-only">选择舰籍视角</label>
+      <select
+        id="ship-viewer"
+        value={viewerId ?? ""}
+        disabled={loading || loadError}
+        aria-busy={loading}
+        onChange={(event) => onSwitch(event.target.value || null)}
+        className="min-h-11 w-full max-w-full rounded-md border border-slate-600 bg-slate-700 px-3 py-2 text-base text-slate-100 outline-none focus:border-primary sm:min-h-9 sm:w-auto sm:text-sm"
+      >
+        <option value="">视角：{currentUserName}</option>
+        {users.map((user) => <option key={user.id} value={user.id}>视角：{user.name}</option>)}
+      </select>
+      {loadError && <p role="alert" className="mt-1 text-xs text-red-300">用户列表加载失败，请刷新重试。</p>}
+    </div>
+  );
+}
+
 // ---- Component ----
 
 function formatSyncTime(value: string | null) {
@@ -91,6 +143,7 @@ export function ShipDataCenter({
   currentUserName,
   currentActivityName,
   lockTags,
+  lockAssignmentsByTagId,
   activityOverview,
 }: {
   initialShipData: string;
@@ -98,9 +151,10 @@ export function ShipDataCenter({
   currentUserName: string;
   currentActivityName: string;
   lockTags: DashboardLockTag[];
+  lockAssignmentsByTagId: Record<string, string[]>;
   activityOverview: ActivityOverview;
 }) {
-  const { masterData } = useMasterData();
+  const { masterData, error: masterDataError, isLoading: masterDataLoading } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const [shipData, setShipData] = useState(initialShipData);
   const [lastShipDataUpdatedAt, setLastShipDataUpdatedAt] = useState<string | null>(initialLastShipDataUpdatedAt);
@@ -112,31 +166,63 @@ export function ShipDataCenter({
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
   const [selectedLockTagId, setSelectedLockTagId] = useState<string>("all");
   const [announcementOpen, setAnnouncementOpen] = useState(false);
   const canEditCurrentView = viewerId === null;
+  const viewerRequestRef = useRef<AbortController | null>(null);
+  const viewerCacheRef = useRef(new Map<string, { shipData: string; lastShipDataUpdatedAt: string | null }>([
+    ["self", { shipData: initialShipData, lastShipDataUpdatedAt: initialLastShipDataUpdatedAt }],
+  ]));
 
   async function switchViewer(uid: string | null) {
-    if (!uid) {
-      setViewerId(null);
-      setShipData(initialShipData);
-      setLastShipDataUpdatedAt(initialLastShipDataUpdatedAt);
+    viewerRequestRef.current?.abort();
+    setError("");
+    setMessage("");
+    const cacheKey = uid ?? "self";
+    const cached = viewerCacheRef.current.get(cacheKey);
+    if (cached) {
+      setViewerId(uid);
+      setShipData(cached.shipData);
+      setLastShipDataUpdatedAt(cached.lastShipDataUpdatedAt);
       setPreview(null);
       setPreviewSource("");
       return;
     }
-    setViewerId(uid);
-    setPreview(null);
-    setPreviewSource("");
+    if (!uid) {
+      setViewerId(null);
+      setShipData(viewerCacheRef.current.get("self")?.shipData ?? initialShipData);
+      setLastShipDataUpdatedAt(viewerCacheRef.current.get("self")?.lastShipDataUpdatedAt ?? initialLastShipDataUpdatedAt);
+      setPreview(null);
+      setPreviewSource("");
+      return;
+    }
+    const controller = new AbortController();
+    viewerRequestRef.current = controller;
+    setViewerLoading(true);
     try {
-      const res = await fetch(`/api/users/ship-data?userId=${encodeURIComponent(uid)}`);
+      const res = await fetch(`/api/users/ship-data?userId=${encodeURIComponent(uid)}`, { signal: controller.signal });
       const data = await res.json();
-      if (data.shipData !== undefined) {
-        setShipData(data.shipData);
-        setLastShipDataUpdatedAt(data.lastShipDataUpdatedAt ?? null);
+      if (!res.ok || data.shipData === undefined) throw new Error(data.error ?? "视角数据加载失败");
+      const next = { shipData: data.shipData as string, lastShipDataUpdatedAt: data.lastShipDataUpdatedAt ?? null };
+      viewerCacheRef.current.set(uid, next);
+      setViewerId(uid);
+      setShipData(next.shipData);
+      setLastShipDataUpdatedAt(next.lastShipDataUpdatedAt);
+      setPreview(null);
+      setPreviewSource("");
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+      setError(requestError instanceof Error ? requestError.message : "视角数据加载失败，请重试。");
+    } finally {
+      if (viewerRequestRef.current === controller) {
+        viewerRequestRef.current = null;
+        setViewerLoading(false);
       }
-    } catch { /* ignore */ }
+    }
   }
+
+  useEffect(() => () => viewerRequestRef.current?.abort(), []);
 
   // Sort state
   const [sortKey, setSortKey] = useState<SortKey>("lv");
@@ -200,6 +286,7 @@ export function ShipDataCenter({
 
   const filteredShips = useMemo(() => {
     let list = sortedShips;
+    list = filterRowsByLockTag(list, selectedLockTagId, lockAssignmentsByTagId);
     if (stypeFilter !== 0) {
       list = list.filter((s) => s.stype === stypeFilter);
     }
@@ -208,7 +295,7 @@ export function ShipDataCenter({
       list = list.filter((s) => s.name.toLowerCase().includes(kw));
     }
     return list;
-  }, [sortedShips, stypeFilter, searchText]);
+  }, [lockAssignmentsByTagId, searchText, selectedLockTagId, sortedShips, stypeFilter]);
 
 
   function handleSort(key: SortKey) {
@@ -365,7 +452,7 @@ export function ShipDataCenter({
   );
 
   useEffect(() => {
-    if (selectedLockTagId === "all" || lockTags.some((tag) => tag.id === selectedLockTagId)) return;
+    if (selectedLockTagId === "all" || selectedLockTagId === "unassigned" || lockTags.some((tag) => tag.id === selectedLockTagId)) return;
     setSelectedLockTagId("all");
   }, [lockTags, selectedLockTagId]);
 
@@ -429,7 +516,9 @@ export function ShipDataCenter({
         return;
       }
       setShipData(preview.normalizedData);
-      setLastShipDataUpdatedAt(data.lastShipDataUpdatedAt ?? new Date().toISOString());
+      const updatedAt = data.lastShipDataUpdatedAt ?? new Date().toISOString();
+      setLastShipDataUpdatedAt(updatedAt);
+      viewerCacheRef.current.set("self", { shipData: preview.normalizedData, lastShipDataUpdatedAt: updatedAt });
       setInputData("");
       setPreview(null);
       setPreviewSource("");
@@ -441,72 +530,41 @@ export function ShipDataCenter({
     }
   }
 
-  // 视角切换下拉框
-  function ViewerDropdown({
-    currentUserName,
-    viewerId: vid,
-    onSwitch,
-  }: {
-    currentUserName: string;
-    viewerId: string | null;
-    onSwitch: (uid: string | null) => void;
-  }) {
-    const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
-    useEffect(() => {
-      fetch("/api/users/list")
-        .then((r) => r.json())
-        .then(setUsers)
-        .catch(() => {});
-    }, []);
-    return (
-      <select
-        value={vid ?? ""}
-        onChange={(e) => onSwitch(e.target.value || null)}
-        className="w-full max-w-full rounded-md border border-slate-600 bg-slate-700 px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50 sm:w-auto"
-      >
-        <option value="">视角：{currentUserName}</option>
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>
-            视角：{u.name}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
   const cardBase =
     "min-w-0 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm shadow-lg shadow-black/10";
-  const topCardClass = "h-[280px]";
+  const topCardClass = "lg:min-h-[280px]";
 
   const thClass =
-    "text-center px-1.5 py-2.5 font-medium text-slate-400 cursor-pointer select-none hover:text-slate-200 transition-colors";
+    "text-center px-1.5 font-medium text-slate-400 select-none transition-colors";
 
   function ThSort({ label, sortKey: key }: { label: string; sortKey: SortKey }) {
     return (
       <th
         className={cn(thClass, key === "id" || key === "lv" ? "w-10" : "w-11")}
-        onClick={() => handleSort(key)}
+        aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
       >
-        <span className="inline-flex items-center justify-center gap-0.5">
+        <button type="button" onClick={() => handleSort(key)} className="inline-flex min-h-11 w-full items-center justify-center gap-0.5 hover:text-slate-200">
           {label}
           <span className="w-3 text-center">{sortIcon(key)}</span>
-        </span>
+        </button>
       </th>
     );
   }
 
   return (
     <div className="min-w-0 space-y-6">
+      {masterDataLoading && <p role="status" className="rounded-md border border-primary/25 bg-primary/10 px-4 py-3 text-sm text-sky-100">正在加载舰船与装备主数据…</p>}
+      {masterDataError && <p role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">主数据加载失败，当前仅显示可识别的基础数据。刷新页面可重试。</p>}
       {/* Row 1: noro6 import card + placeholders */}
-      <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-3 sm:gap-4">
+      <div className="grid grid-cols-1 items-stretch gap-3 sm:gap-4 lg:grid-cols-3">
         {/* noro6 import card */}
         <div className={cn(cardBase, topCardClass, "p-4")}>
-          <form onSubmit={onPreview} className="h-full space-y-2.5 overflow-y-auto pr-1">
+          <form onSubmit={onPreview} className="h-full space-y-2.5 lg:overflow-y-auto lg:pr-1">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-2">
                 <h2 className="text-sm font-semibold text-white">DATA SYNC / 数据同步</h2>
               </div>
-              <ViewerDropdown currentUserName={currentUserName} viewerId={viewerId} onSwitch={switchViewer} />
+              <ViewerDropdown currentUserName={currentUserName} viewerId={viewerId} loading={viewerLoading} onSwitch={switchViewer} />
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
               <StatusBadge variant={canEditCurrentView ? "default" : "muted"}>
@@ -595,7 +653,7 @@ export function ShipDataCenter({
           </form>
         </div>
 
-        <div className={cn(cardBase, topCardClass, "flex flex-col")}>
+        <div className={cn(cardBase, topCardClass, "order-3 flex flex-col lg:order-2")}>
           <div className="flex items-center justify-between gap-3 border-b border-slate-700/50 px-4 py-4">
             <div className="min-w-0">
               <p className="terminal-label text-[10px] font-semibold text-primary">LOCK TAGS</p>
@@ -606,7 +664,7 @@ export function ShipDataCenter({
             </StatusBadge>
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 lg:overflow-y-auto lg:pr-1">
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -636,18 +694,31 @@ export function ShipDataCenter({
                     {tag.name}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setSelectedLockTagId("unassigned")}
+                  className={cn(
+                    "min-h-11 rounded-md border px-3 py-2 text-xs font-semibold transition-colors",
+                    selectedLockTagId === "unassigned"
+                      ? "border-primary/60 bg-primary/15 text-sky-100"
+                      : "border-slate-700/70 bg-slate-950/25 text-slate-300 hover:border-primary/35",
+                  )}
+                >
+                  未贴条
+                </button>
               </div>
             </div>
             <div className="mt-auto rounded-md border border-slate-700/60 bg-slate-950/25 px-3 py-2">
               <p className="terminal-label text-[10px] text-slate-500">ACTIVE FILTER</p>
               <p className="mt-1 truncate text-sm font-semibold text-slate-100">
-                {selectedLockTag ? selectedLockTag.name : "全部贴条"}
+                {selectedLockTagId === "unassigned" ? "未贴条" : selectedLockTag ? selectedLockTag.name : "全部贴条"}
               </p>
+              <p className="mt-1 text-xs text-slate-400">显示 {filteredShips.length} / {parsedShips.length} 艘</p>
             </div>
           </div>
         </div>
 
-        <div className={cn(cardBase, topCardClass, "flex flex-col")}>
+        <div className={cn(cardBase, topCardClass, "order-2 flex flex-col lg:order-3")}>
           <div className="flex items-center justify-between gap-3 border-b border-slate-700/50 px-4 py-4">
             <div className="min-w-0">
               <p className="terminal-label text-[10px] font-semibold text-primary">EVENT INTEL</p>
@@ -657,7 +728,7 @@ export function ShipDataCenter({
               {activityOverview.status ?? "INFO"}
             </StatusBadge>
           </div>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 pr-3">
+          <div className="min-h-0 flex-1 space-y-3 p-4 lg:overflow-y-auto lg:pr-3">
             <div>
               <p className="text-base font-bold text-white">{activityOverview.title}</p>
               <p className="mt-1 text-xs text-slate-500">{activityOverview.subtitle ?? currentActivityName}</p>
@@ -762,7 +833,7 @@ export function ShipDataCenter({
         <div className={`${cardBase} w-full lg:w-[560px] lg:shrink-0`}>
           <div className="flex flex-col gap-3 border-b border-slate-700/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="text-lg">🚢</span>
+              <Ship className="h-5 w-5 text-primary" aria-hidden="true" />
               <h2 className="font-semibold text-white">拥有舰船</h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -879,7 +950,7 @@ export function ShipDataCenter({
         <div className={`${cardBase} flex-1`}>
           <div className="flex flex-col gap-3 border-b border-slate-700/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="text-lg">🔧</span>
+              <Wrench className="h-5 w-5 text-primary" aria-hidden="true" />
               <h2 className="font-semibold text-white">拥有装备</h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -934,28 +1005,28 @@ export function ShipDataCenter({
                       装备名
                     </th>
                     <th
-                      className="text-center px-3 py-2.5 font-medium text-slate-400 w-12 cursor-pointer select-none hover:text-slate-200 transition-colors"
-                      onClick={() => handleEquipSort("id")}
+                      aria-sort={equipSortKey === "id" ? (equipSortDir === "asc" ? "ascending" : "descending") : "none"}
+                      className="w-12 px-3 text-center font-medium text-slate-400"
                     >
-                      <span className="inline-flex items-center justify-center gap-0.5">
+                      <button type="button" onClick={() => handleEquipSort("id")} className="inline-flex min-h-11 w-full items-center justify-center gap-0.5 hover:text-slate-200">
                         ID<span className="w-3 text-center">{equipSortIcon("id")}</span>
-                      </span>
+                      </button>
                     </th>
                     <th
-                      className="text-center px-4 py-2.5 font-medium text-slate-400 w-16 cursor-pointer select-none hover:text-slate-200 transition-colors"
-                      onClick={() => handleEquipSort("lv")}
+                      aria-sort={equipSortKey === "lv" ? (equipSortDir === "asc" ? "ascending" : "descending") : "none"}
+                      className="w-16 px-4 text-center font-medium text-slate-400"
                     >
-                      <span className="inline-flex items-center justify-center gap-0.5 whitespace-nowrap">
+                      <button type="button" onClick={() => handleEquipSort("lv")} className="inline-flex min-h-11 w-full items-center justify-center gap-0.5 whitespace-nowrap hover:text-slate-200">
                         改修<span className="w-3 text-center">{equipSortIcon("lv")}</span>
-                      </span>
+                      </button>
                     </th>
                     <th
-                      className="text-center px-4 py-2.5 font-medium text-slate-400 w-16 cursor-pointer select-none hover:text-slate-200 transition-colors"
-                      onClick={() => handleEquipSort("count")}
+                      aria-sort={equipSortKey === "count" ? (equipSortDir === "asc" ? "ascending" : "descending") : "none"}
+                      className="w-16 px-4 text-center font-medium text-slate-400"
                     >
-                      <span className="inline-flex items-center justify-center gap-0.5 whitespace-nowrap">
+                      <button type="button" onClick={() => handleEquipSort("count")} className="inline-flex min-h-11 w-full items-center justify-center gap-0.5 whitespace-nowrap hover:text-slate-200">
                         数量<span className="w-3 text-center">{equipSortIcon("count")}</span>
-                      </span>
+                      </button>
                     </th>
                   </tr>
                 </thead>
@@ -989,7 +1060,7 @@ export function ShipDataCenter({
                           </span>
                         ) : (
                           <span className={item.lv > 0 ? "font-semibold text-amber-400" : "text-slate-500"}>
-                            {item.lv > 0 ? `★+${item.lv}` : "-"}
+                            {item.lv > 0 ? `改修 +${item.lv}` : "-"}
                           </span>
                         )}
                       </td>

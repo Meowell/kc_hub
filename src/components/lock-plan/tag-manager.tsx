@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -105,7 +106,7 @@ export function TagManager({ tags, deleteImpacts = {}, readOnly = false, onAdd, 
                 className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-sm bg-red-500 text-[10px] text-white group-hover:flex"
                 title="停用标签"
               >
-                ✕
+                <X className="h-3 w-3" aria-hidden="true" />
               </button>
             )}
           </div>

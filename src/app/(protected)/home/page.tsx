@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowRight, ClipboardList, Database, FileText, LockKeyhole, RadioTower } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { ActivitySwitcher } from "@/components/common/activity-switcher";
@@ -7,6 +8,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getActiveActivities, resolveActivityScope, scopedPath } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
+import { canManageSharedResource } from "@/lib/collaboration";
 import { getRoleLabel } from "@/lib/collaboration";
 import { buildLockMatrixSummary } from "@/lib/lock-plan-helpers";
 import { prisma } from "@/lib/prisma";
@@ -91,7 +93,7 @@ export default async function HomePage({
 
   return (
     <div className="space-y-6">
-      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
+      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} canCreateActivity={canManageSharedResource(user)} />
 
       <section className="surface-panel relative overflow-hidden rounded-md p-5 sm:p-6">
         <div className="absolute inset-x-0 top-0 h-px bg-primary/50" />
@@ -167,7 +169,7 @@ export default async function HomePage({
             <p className="terminal-label text-xs text-slate-500">
               LAST SYNC / {formatDateTime(latestLockUpdate)}{latestLockUser ? ` / ${latestLockUser}` : ""}
             </p>
-            <Link href={scopedPath("/lock-plan", scope.activityId)} className="text-xs text-primary hover:text-sky-200">
+            <Link href={scopedPath("/lock-plan", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">
               {lockSummary.conflictCount ? "进入冲突筛选" : "进入矩阵"}
             </Link>
           </div>
@@ -176,7 +178,7 @@ export default async function HomePage({
         <Panel eyebrow="ADMIRAL STATUS" title="个人状态" status={<StatusBadge variant="muted">{getRoleLabel(user.role)}</StatusBadge>}>
           <div className="flex items-center gap-3">
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt={user.name} className="h-12 w-12 rounded-md object-cover ring-1 ring-border-base" />
+              <Image src={user.avatarUrl} alt={user.name} width={48} height={48} unoptimized className="h-12 w-12 rounded-md object-cover ring-1 ring-border-base" />
             ) : (
               <span className="grid h-12 w-12 place-items-center rounded-md border border-primary/35 bg-primary/10 text-lg font-bold text-primary">
                 {user.name.charAt(0).toUpperCase()}
@@ -187,7 +189,7 @@ export default async function HomePage({
               <p className="terminal-label text-xs text-slate-500">FOOD / {user.food}</p>
             </div>
           </div>
-          <Link href="/profile" className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-sky-200">
+          <Link href="/profile" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-primary hover:text-sky-200 sm:min-h-6">
             打开个人设置
             <ArrowRight className="h-4 w-4" />
           </Link>
@@ -195,7 +197,7 @@ export default async function HomePage({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel eyebrow="SORTIE BOARD" title="最近作业卡" actions={<Link href={scopedPath("/routine", scope.activityId)} className="text-xs text-primary hover:text-sky-200">查看全部</Link>}>
+        <Panel eyebrow="SORTIE BOARD" title="最近作业卡" actions={<Link href={scopedPath("/routine", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">查看全部</Link>}>
           {recentRoutine.length === 0 ? (
             <EmptyFeed icon={<ClipboardList className="h-5 w-5" />} title="尚无作业卡" text="建立作业卡后，最近阵容记录会出现在这里。" />
           ) : (
@@ -217,7 +219,7 @@ export default async function HomePage({
           )}
         </Panel>
 
-        <Panel eyebrow="TACTICAL NOTES" title="最近攻略" actions={<Link href={scopedPath("/strategy", scope.activityId)} className="text-xs text-primary hover:text-sky-200">查看全部</Link>}>
+        <Panel eyebrow="TACTICAL NOTES" title="最近攻略" actions={<Link href={scopedPath("/strategy", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">查看全部</Link>}>
           {recentStrategy.length === 0 ? (
             <EmptyFeed icon={<FileText className="h-5 w-5" />} title="尚无攻略档案" text="发布攻略后，最近战术档案会出现在这里。" />
           ) : (
@@ -247,7 +249,7 @@ export default async function HomePage({
               <AlertTriangle className="h-4 w-4 text-warning" />
               仍有成员未导入 noro6 数据，锁船和作业卡选择可能不完整。
             </p>
-            <Link href="/dashboard" className="text-primary hover:text-sky-200">前往舰籍数据</Link>
+            <Link href="/dashboard" className="inline-flex min-h-11 items-center rounded-md text-primary hover:text-sky-200 sm:min-h-6">前往舰籍数据</Link>
           </div>
         </Panel>
       )}

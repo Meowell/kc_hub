@@ -3,9 +3,10 @@ import { RoutineRecords } from "@/components/routine/routine-form";
 import { RoutineFilter } from "@/components/routine/routine-filter";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
 import { requireCurrentUser } from "@/lib/auth";
-import { getVisibleContentWhere } from "@/lib/collaboration";
+import { canManageSharedResource, getVisibleContentWhere } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { getSafePage } from "@/lib/frontend-ux";
 
 const PAGE_SIZE = 10;
 
@@ -42,19 +43,21 @@ export default async function RoutinePage({
   const where: Prisma.RoutineRecordWhereInput =
     conditions.length > 0 ? { AND: conditions } : {};
 
-  // Parallel: records + count + filter options
-  const [totalCount, records, seaAreaGroups, uploaderGroups] = await Promise.all([
+  // Count first so an out-of-range page never queries an empty offset.
+  const [totalCount, seaAreaGroups, uploaderGroups] = await Promise.all([
     prisma.routineRecord.count({ where }),
-    prisma.routineRecord.findMany({
-      where,
-      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: { user: { select: { id: true, name: true, avatarUrl: true } } },
-    }),
     prisma.routineRecord.groupBy({ by: ["seaArea"], where: getVisibleContentWhere({ activityId: scope.activityId }), orderBy: { seaArea: "asc" } }),
     prisma.routineRecord.groupBy({ by: ["userId"], where: getVisibleContentWhere({ activityId: scope.activityId }), orderBy: { userId: "asc" } }),
   ]);
+
+  const { currentPage: safePage, totalPages } = getSafePage(currentPage, totalCount, PAGE_SIZE);
+  const records = await prisma.routineRecord.findMany({
+    where,
+    orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+    skip: (safePage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+  });
 
   // Resolve uploader names
   const userIds = uploaderGroups.map((g) => g.userId);
@@ -65,9 +68,6 @@ export default async function RoutinePage({
         orderBy: { name: "asc" },
       })
     : [];
-
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const safePage = currentPage > totalPages ? totalPages : currentPage;
 
   const serializableRecords = records.map((r) => ({
     id: r.id,
@@ -85,7 +85,7 @@ export default async function RoutinePage({
 
   return (
     <div className="space-y-6">
-      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} />
+      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} canCreateActivity={canManageSharedResource(user)} />
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <p className="terminal-label text-xs font-semibold text-primary">SORTIE BOARD / 作业卡</p>
@@ -104,6 +104,7 @@ export default async function RoutinePage({
         />
       </div>
       <RoutineRecords
+        key={scope.scopeKey}
         records={serializableRecords}
         currentPage={safePage}
         totalPages={totalPages}

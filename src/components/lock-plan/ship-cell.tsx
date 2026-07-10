@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { type ShipStock } from "@/lib/noro6";
 import { getLockTagColorClassName, getLockTagStripStyle } from "@/lib/lock-tag-colors";
 import { cn } from "@/lib/utils";
@@ -91,7 +92,7 @@ export function ShipCell({
           className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-red-500/20 hover:text-red-400 text-[10px] leading-none opacity-0 group-hover:opacity-100 transition-opacity"
           title="移除"
         >
-          ✕
+          <X className="h-3 w-3" aria-hidden="true" />
         </button>
       )}
 

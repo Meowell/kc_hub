@@ -11,10 +11,13 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/routine") ||
     request.nextUrl.pathname.startsWith("/strategy") ||
-    request.nextUrl.pathname.startsWith("/lock-plan");
+    request.nextUrl.pathname.startsWith("/lock-plan") ||
+    request.nextUrl.pathname.startsWith("/profile");
 
   if (isProtected && !session) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(loginUrl);
   }
 
   if ((request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/register") && session) {
@@ -25,5 +28,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/home/:path*", "/dashboard/:path*", "/routine/:path*", "/strategy/:path*", "/lock-plan/:path*", "/login", "/register"],
+  matcher: ["/", "/home/:path*", "/dashboard/:path*", "/routine/:path*", "/strategy/:path*", "/lock-plan/:path*", "/profile/:path*", "/login", "/register"],
 };

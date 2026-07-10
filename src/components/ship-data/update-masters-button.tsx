@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { notifyMasterDataUpdated } from "@/lib/master-data-events";
 
 async function updateMasters(): Promise<{ success: boolean; results: string[]; errors?: string[] }> {
@@ -37,13 +38,13 @@ export function UpdateMastersButton() {
       <button
         onClick={handleClick}
         disabled={loading}
-        className="inline-flex items-center gap-1 rounded-lg border border-slate-600/50 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:border-slate-500/50 hover:bg-slate-700/60 transition-all disabled:opacity-50"
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-600/50 bg-slate-800/60 px-3 py-2 text-sm font-medium text-slate-300 transition-all hover:border-slate-500/50 hover:bg-slate-700/60 hover:text-slate-100 disabled:opacity-50"
       >
-        <span>{loading ? "⏳" : "🔄"}</span>
-        <span>{loading ? "更新中..." : "抓取数据"}</span>
+        <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} aria-hidden="true" />
+        <span>{loading ? "更新中…" : "抓取数据"}</span>
       </button>
-      {msg && <span className="text-xs text-emerald-400">{msg}</span>}
-      {err && <span className="text-xs text-red-400 whitespace-pre-line">{err}</span>}
+      {msg && <span role="status" className="text-sm text-emerald-300">{msg}</span>}
+      {err && <span role="alert" className="whitespace-pre-line text-sm text-red-300">{err}</span>}
     </div>
   );
 }

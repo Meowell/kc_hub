@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ClipboardPaste, Download, Inbox, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   createFleetParser,
   type FleetParser,
@@ -252,7 +256,7 @@ function EquipmentRow({
         )}
         {(slot.equipId != null && isPlaneEquip(slot.equipId)) || slot.improvement !== undefined ? (
           <span className="inline-block w-[2rem] text-left text-cyan-400 text-[10px] font-medium">
-            {slot.improvement !== undefined ? `★${slot.improvement < 10 ? slot.improvement : "max"}` : ""}
+            {slot.improvement !== undefined ? `改${slot.improvement < 10 ? `+${slot.improvement}` : "max"}` : ""}
           </span>
         ) : null}
         {slot.name && onUnequip && (
@@ -262,7 +266,7 @@ function EquipmentRow({
             className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-500 hover:text-red-400 px-1 transition-all"
             title="卸下装备"
           >
-            ✕
+            <X className="h-3 w-3" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -289,14 +293,14 @@ function ShipCard({
   return (
     <div
       onClick={onShipClick}
-      className={`flex flex-row gap-4 rounded-xl border bg-slate-800/60 p-4 transition-all min-h-[150px] ${
+      className={`flex min-h-[150px] flex-col gap-4 rounded-xl border bg-slate-800/60 p-4 transition-all sm:flex-row ${
         onShipClick
           ? "cursor-pointer border-slate-700/50 hover:border-blue-500/40 hover:bg-slate-800/80"
           : "border-slate-700/50"
       }`}
     >
       {/* Left: Ship Status (30%) */}
-      <div className="flex flex-col gap-1 w-[30%] shrink-0">
+      <div className="flex w-full shrink-0 flex-col gap-1 sm:w-[30%]">
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-medium text-sky-400 bg-sky-500/10 px-1 py-0.5 rounded">
             {abbr}
@@ -310,7 +314,7 @@ function ShipCard({
       </div>
 
       {/* Right: Equipment List (70%) */}
-      <div className="flex flex-col text-xs w-[70%] min-w-0">
+      <div className="flex min-w-0 w-full flex-col text-xs sm:w-[70%]">
         {ship.equipment.map((eq, i) => {
           const isExp = i === ship.slotCount;
           const cap = i < ship.slotCaps.length ? ship.slotCaps[i] : undefined;
@@ -389,24 +393,23 @@ function ShipPickerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
-          <h3 className="text-base font-semibold text-white">选择舰娘 · 位置 {slotIndex + 1}</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-lg">✕</button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="flex max-h-[100dvh] flex-col p-0 sm:max-h-[85dvh] sm:max-w-2xl">
+        <DialogHeader className="mb-0 border-b border-slate-700/50 px-5 py-4">
+          <DialogTitle>选择舰娘 · 位置 {slotIndex + 1}</DialogTitle>
+          <DialogDescription className="sr-only">筛选并选择一艘舰船加入舰队。</DialogDescription>
+        </DialogHeader>
         {/* Filter bar */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/30 bg-slate-800/50">
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+        <div className="grid grid-cols-1 gap-2 border-b border-slate-700/30 bg-slate-800/50 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center">
+          <Input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索舰名 / ID..."
-            className="flex-1 bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-blue-500/50" />
-          <select value={stypeFilter} onChange={(e) => setStypeFilter(Number(e.target.value))}
-            className="bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50">
+            className="bg-slate-700" />
+          <Select value={stypeFilter} onChange={(e) => setStypeFilter(Number(e.target.value))} className="bg-slate-700">
             <option value={0}>全部舰种</option>
             {stypeOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          </Select>
           {(stypeFilter !== 0 || search.trim()) && (
-            <button onClick={() => { setStypeFilter(0); setSearch(""); }} className="text-xs text-slate-500 hover:text-slate-300 shrink-0">清除</button>
+            <button type="button" onClick={() => { setStypeFilter(0); setSearch(""); }} className="min-h-11 shrink-0 rounded-md px-3 text-sm text-slate-300 hover:bg-slate-700">清除</button>
           )}
           <span className="text-xs text-slate-500">{filtered.length} 艘</span>
         </div>
@@ -418,21 +421,20 @@ function ShipPickerModal({
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-slate-800/90 backdrop-blur-sm">
                 <tr className="border-b border-slate-700/50">
-                  <th className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-12" onClick={() => handleSort("shipId")}>ID</th>
-                  <th className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-10" onClick={() => handleSort("level")}>Lv</th>
+                  <th aria-sort={sortKey === "shipId" ? (sortDir === "asc" ? "ascending" : "descending") : "none"} className="w-12 px-1.5 text-center font-medium text-slate-400"><button type="button" onClick={() => handleSort("shipId")} className="min-h-11 w-full hover:text-slate-200">ID</button></th>
+                  <th aria-sort={sortKey === "level" ? (sortDir === "asc" ? "ascending" : "descending") : "none"} className="w-10 px-1.5 text-center font-medium text-slate-400"><button type="button" onClick={() => handleSort("level")} className="min-h-11 w-full hover:text-slate-200">Lv</button></th>
                   <th className="text-left px-2 py-2 font-medium text-slate-400">舰船名</th>
                   {shipStatHeaders.map((h) => (
-                    <th key={h.key} className="text-center px-1.5 py-2 font-medium text-slate-400 cursor-pointer hover:text-slate-200 w-10" onClick={() => handleSort(h.key)}>{h.label}</th>
+                    <th key={h.key} aria-sort={sortKey === h.key ? (sortDir === "asc" ? "ascending" : "descending") : "none"} className="w-10 px-1.5 text-center font-medium text-slate-400"><button type="button" onClick={() => handleSort(h.key)} className="min-h-11 w-full hover:text-slate-200">{h.label}</button></th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((s) => (
-                  <tr key={s.uniqueId} onClick={() => onSelect(s)}
-                    className="border-t border-slate-700/30 hover:bg-slate-700/40 cursor-pointer transition-colors">
+                  <tr key={s.uniqueId} className="border-t border-slate-700/30 transition-colors hover:bg-slate-700/40">
                     <td className="px-1.5 py-2 text-center text-slate-500 tabular-nums">{s.shipId}</td>
                     <td className={`px-1.5 py-2 text-center tabular-nums font-semibold ${levelColor(s.level)}`}>{s.level}</td>
-                    <td className="px-2 py-2 text-slate-200 font-medium truncate max-w-[160px]">{s.name}</td>
+                    <td className="max-w-[160px] p-0 text-slate-200 font-medium"><button type="button" onClick={() => onSelect(s)} className="min-h-11 w-full truncate px-2 text-left hover:text-sky-200">{s.name}</button></td>
                     {shipStatHeaders.map((h) => (
                       <td key={h.key} className="px-1.5 py-2 text-center tabular-nums text-slate-300">{s[h.key]}</td>
                     ))}
@@ -442,8 +444,8 @@ function ShipPickerModal({
             </table>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -491,24 +493,23 @@ function EquipPickerModal({
   }, [filtered]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-xl max-h-[80vh] flex flex-col rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
-          <h3 className="text-base font-semibold text-white">选择装备</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-lg">✕</button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="flex max-h-[100dvh] flex-col p-0 sm:max-h-[85dvh] sm:max-w-xl">
+        <DialogHeader className="mb-0 border-b border-slate-700/50 px-5 py-4">
+          <DialogTitle>选择装备</DialogTitle>
+          <DialogDescription className="sr-only">筛选并选择一件装备。</DialogDescription>
+        </DialogHeader>
         {/* Filter bar */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/30 bg-slate-800/50">
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+        <div className="grid grid-cols-1 gap-2 border-b border-slate-700/30 bg-slate-800/50 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center">
+          <Input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索装备名..."
-            className="flex-1 bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-blue-500/50" />
-          <select value={typeFilter} onChange={(e) => setTypeFilter(Number(e.target.value))}
-            className="bg-slate-700 border border-slate-600 rounded-md px-2 py-1 text-xs text-slate-200 outline-none focus:border-blue-500/50">
+            className="bg-slate-700" />
+          <Select value={typeFilter} onChange={(e) => setTypeFilter(Number(e.target.value))} className="bg-slate-700">
             <option value={0}>全部装备</option>
             {typeOptions.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          </Select>
           {(typeFilter !== 0 || search.trim()) && (
-            <button onClick={() => { setTypeFilter(0); setSearch(""); }} className="text-xs text-slate-500 hover:text-slate-300 shrink-0">清除</button>
+            <button type="button" onClick={() => { setTypeFilter(0); setSearch(""); }} className="min-h-11 shrink-0 rounded-md px-3 text-sm text-slate-300 hover:bg-slate-700">清除</button>
           )}
           <span className="text-xs text-slate-500">{displayItems.length} 种</span>
         </div>
@@ -520,18 +521,18 @@ function EquipPickerModal({
             displayItems.map((row, i) => (
               <button key={`${row.equipId}-${row.lv}-${i}`} type="button"
                 onClick={() => onSelect({ equipId: row.equipId, name: row.name, typeId: 0, typeName: "", lv: row.lv })}
-                className="flex items-center gap-3 px-5 py-2.5 w-full text-left hover:bg-slate-700/30 border-b border-slate-700/20 transition-colors">
+                className="flex min-h-11 w-full items-center gap-3 border-b border-slate-700/20 px-5 py-2.5 text-left transition-colors hover:bg-slate-700/30">
                 <span className="text-sm text-slate-200 flex-1 truncate">{row.name}</span>
                 <span className="text-[11px] text-slate-500 shrink-0">{row.typeName}</span>
-                {row.lv > 0 && <span className="text-[11px] font-semibold text-amber-400 shrink-0 w-10 text-right">★+{row.lv}</span>}
+                {row.lv > 0 && <span className="w-14 shrink-0 text-right text-[11px] font-semibold text-amber-400">改修 +{row.lv}</span>}
                 {row.lv === 0 && <span className="text-[11px] text-slate-600 shrink-0 w-10 text-right">-</span>}
                 <span className="text-xs text-slate-500 shrink-0 w-6 text-right">{row.count}</span>
               </button>
             ))
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -700,7 +701,7 @@ export function FleetEditor({
       {!initialFleetData && (
       <div className="rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-4 shadow-lg shadow-black/10">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm text-slate-400">📋</span>
+          <ClipboardPaste className="h-4 w-4 text-primary" aria-hidden="true" />
           <span className="text-xs text-slate-500">
             粘贴战斗记录或 DeckBuilder 阵容数据
             {hasStock && (
@@ -720,7 +721,7 @@ export function FleetEditor({
         <div className="flex items-center justify-between mt-2">
           {error && <p className="text-xs text-red-400">{error}</p>}
           <Button type="button" onClick={handlePaste} disabled={!rawText.trim()} className="ml-auto text-sm">
-            📥 读取阵容
+            <Download className="h-4 w-4" aria-hidden="true" />读取阵容
           </Button>
         </div>
       </div>
@@ -749,7 +750,7 @@ export function FleetEditor({
         </div>
 
         {fleet && fleet.length > 0 ? (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
             {fleet.map((ship, i) => (
               <ShipCard
                 key={i}
@@ -764,7 +765,7 @@ export function FleetEditor({
           </div>
         ) : (
           <div className="rounded-xl border border-dashed border-slate-700/50 bg-slate-800/40 py-12 text-center">
-            <p className="text-3xl mb-2">📭</p>
+            <Inbox className="mx-auto mb-3 h-8 w-8 text-slate-400" aria-hidden="true" />
             <p className="text-sm text-slate-500">在上方粘贴 DeckBuilder 数据以加载阵容</p>
           </div>
         )}

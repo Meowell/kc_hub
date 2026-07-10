@@ -26,7 +26,7 @@ export default async function LockPlanGlobalPage({
 
     return (
       <div className="space-y-6">
-        <ActivitySwitcher activities={activities} currentActivityId={null} showDaily={false} />
+        <ActivitySwitcher activities={activities} currentActivityId={null} showDaily={false} canCreateActivity={canManageSharedResource(currentUser)} />
         <Panel
           eyebrow="LOCK MATRIX"
           title="锁船矩阵"
@@ -98,8 +98,9 @@ export default async function LockPlanGlobalPage({
 
   return (
     <div className="space-y-6">
-      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} showDaily={false} />
+      <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} showDaily={false} canCreateActivity={canManageSharedResource(currentUser)} />
       <LockPlanGodView
+        key={scope.scopeKey}
         initialTags={tags.map((t) => ({
           id: t.id,
           name: t.name,

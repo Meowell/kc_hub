@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Clock3, Trophy, X } from "lucide-react";
 
 type Leader = { name: string; score: number };
 
@@ -53,7 +54,7 @@ export function GameModal({
           <div className="flex items-center gap-3">
             {!gameOver && (
               <span className="text-sm text-slate-400 tabular-nums">
-                ⏱ {score}s
+                <Clock3 className="mr-1 inline h-4 w-4" aria-hidden="true" />{score}s
               </span>
             )}
             <button
@@ -61,7 +62,7 @@ export function GameModal({
               className="text-slate-500 hover:text-slate-300 text-lg leading-none transition-colors"
               aria-label="关闭"
             >
-              ✕
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -79,17 +80,17 @@ export function GameModal({
               </p>
               {newRecord && (
                 <p className="text-base font-bold text-yellow-400 animate-pulse">
-                  🏆 新記録達成！🍙 +10
+                  新纪录达成，粮食 +10
                 </p>
               )}
               {refunded && (
-                <p className="text-sm text-emerald-400">堅持 60 秒！返還 🍙 +1</p>
+                <p className="text-sm text-emerald-400">坚持 60 秒，返还粮食 +1</p>
               )}
 
               {/* 排行榜 */}
               {top3.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-slate-700/50">
-                  <p className="text-xs text-slate-500 mb-2">🏆 排行榜</p>
+                  <p className="mb-2 flex items-center justify-center gap-1.5 text-xs text-slate-400"><Trophy className="h-4 w-4" aria-hidden="true" />排行榜</p>
                   <div className="space-y-1">
                     {top3.map((r, i) => (
                       <div
@@ -97,7 +98,7 @@ export function GameModal({
                         className="flex items-center justify-between gap-6 text-sm"
                       >
                         <span className="text-slate-300">
-                          {["🥇", "🥈", "🥉"][i]} {r.name}
+                          第 {i + 1} 名 · {r.name}
                         </span>
                         <span className="text-slate-400 tabular-nums font-mono">
                           {r.score}s

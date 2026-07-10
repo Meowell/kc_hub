@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { type ShipStock } from "@/lib/noro6";
 import { type LockAssignment } from "@/lib/lock-plan-helpers";
 import { type ActivityBonusGroup } from "@/lib/activity-bonus";
@@ -40,7 +41,7 @@ export function UserLockRow({
         <div className="sticky left-0 z-20 w-[180px] shrink-0 border border-border-base bg-bg-panel/95 p-3 shadow-xl shadow-black/20">
           <div className="flex items-center gap-3">
             {avatarUrl ? (
-              <img src={avatarUrl} alt={userName} className="h-8 w-8 rounded-md object-cover ring-1 ring-blue-500/30" />
+              <Image src={avatarUrl} alt={userName} width={32} height={32} unoptimized className="h-8 w-8 rounded-md object-cover ring-1 ring-blue-500/30" />
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded-md border border-blue-500/30 bg-blue-600/20 text-sm font-bold text-blue-100">
                 {userName.charAt(0).toUpperCase()}

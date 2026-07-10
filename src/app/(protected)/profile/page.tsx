@@ -37,16 +37,6 @@ export default async function ProfilePage() {
               initialUrl={user.backgroundUrl}
               apiEndpoint="/api/auth/background"
               fieldName="backgroundUrl"
-              preview={
-                user.backgroundUrl ? (
-                  <img src={user.backgroundUrl} alt="bg" className="h-16 w-24 rounded-md object-cover ring-1 ring-border-base" />
-                ) : (
-                  <span className="flex h-16 w-24 items-center justify-center rounded-md border border-border-base bg-slate-900/60 text-xs text-slate-500">
-                    无背景
-                  </span>
-                )
-              }
-              reloadOnChange
             />
           </div>
         </Panel>
