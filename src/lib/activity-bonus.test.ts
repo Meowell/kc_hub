@@ -76,6 +76,25 @@ describe("activity bonus config", () => {
     assert.equal(genericMatch.multiplierLabel, "x1.02");
   });
 
+  it("matches named bonuses across remodel forms on both sides", () => {
+    const familyGroups = normalizeActivityBonusConfig({
+      version: 1,
+      groups: [{
+        id: "kasumi-form",
+        name: "霞形态组",
+        shipIds: [464],
+        points: [{ code: "P", multiplier: 1.12 }],
+      }],
+    }).groups;
+    const resolveOriginal = (shipId: number) => [49, 253, 464, 470].includes(shipId) ? 49 : shipId;
+
+    const baseMatch = getShipBonusMatch(familyGroups, 49, 2, 49, resolveOriginal);
+    const remodeledMatch = getShipBonusMatch(familyGroups, 470, 2, 49, resolveOriginal);
+
+    assert.equal(baseMatch.hasNamedBonus, true);
+    assert.equal(remodeledMatch.hasNamedBonus, true);
+  });
+
   it("normalizes multiplier ranges to their midpoint", () => {
     const rangeConfig = normalizeActivityBonusConfig({
       version: 1,

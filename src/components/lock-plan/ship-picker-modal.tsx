@@ -87,6 +87,7 @@ export function ShipPickerModal({
           ship.shipId,
           shipTypeId,
           getShipOriginalId?.(ship.shipId) ?? ship.shipId,
+          getShipOriginalId,
         );
         const matchesQuery =
           !q || name.toLowerCase().includes(q) || String(ship.shipId).includes(q);
@@ -177,6 +178,7 @@ export function ShipPickerModal({
                 ship.shipId,
                 shipTypeId,
                 getShipOriginalId?.(ship.shipId) ?? ship.shipId,
+                getShipOriginalId,
               );
               const shipName = getShipName(ship.shipId);
               return (

@@ -91,16 +91,25 @@ export const shipTypeLabels: Record<number, string> = {
   22: "AO",
 };
 
-function getRemodelRoot(shipId: number, remodelFrom: Map<number, number>): number {
-  let cur = shipId;
+function getRemodelRoot(shipId: number, remodelFrom: Map<number, Set<number>>): number {
   const seen = new Set<number>();
-  while (true) {
-    const from = remodelFrom.get(cur);
-    if (!from || seen.has(from)) break;
-    seen.add(from);
-    cur = from;
+  const roots: number[] = [];
+  const pending = [shipId];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+
+    const previousForms = remodelFrom.get(current);
+    if (!previousForms || previousForms.size === 0) {
+      roots.push(current);
+      continue;
+    }
+    pending.push(...previousForms);
   }
-  return cur;
+
+  return roots.length > 0 ? Math.min(...roots) : Math.min(...seen);
 }
 
 export function createMasterLookup(masterData: MasterData = emptyMasterData) {
@@ -124,14 +133,23 @@ export function createMasterLookup(masterData: MasterData = emptyMasterData) {
     shipSlotCountById.set(ship.api_id, ship.api_slot_num ?? (ship.api_maxeq?.length ?? 4));
   }
 
-  const remodelFrom = new Map<number, number>();
+  const remodelFrom = new Map<number, Set<number>>();
   for (const ship of allShips) {
     const after = ship.api_aftershipid ? Number(ship.api_aftershipid) : 0;
-    if (after) remodelFrom.set(after, ship.api_id);
+    if (!after) continue;
+    const previousForms = remodelFrom.get(after) ?? new Set<number>();
+    previousForms.add(ship.api_id);
+    remodelFrom.set(after, previousForms);
   }
   const origByShipId = new Map<number, number>();
   for (const ship of allShips) {
-    origByShipId.set(ship.api_id, getRemodelRoot(ship.api_id, remodelFrom));
+    const explicitOriginal = shipHpById.get(ship.api_id)?.orig;
+    origByShipId.set(
+      ship.api_id,
+      explicitOriginal && explicitOriginal > 0
+        ? explicitOriginal
+        : getRemodelRoot(ship.api_id, remodelFrom),
+    );
   }
 
   const equipNameById = new Map<number, string>();

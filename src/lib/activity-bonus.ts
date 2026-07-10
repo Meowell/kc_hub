@@ -319,8 +319,18 @@ export function summarizeBonusGroupNames(groups: ActivityBonusGroup[]) {
   return `${groups.length}组`;
 }
 
-function shipMatchesGroup(group: ActivityBonusGroup, shipId: number, originalShipId?: number | null) {
-  return group.shipIds.includes(shipId) || (!!originalShipId && group.shipIds.includes(originalShipId));
+function shipMatchesGroup(
+  group: ActivityBonusGroup,
+  shipId: number,
+  originalShipId?: number | null,
+  resolveOriginalShipId?: (shipId: number) => number,
+) {
+  const familyId = originalShipId || resolveOriginalShipId?.(shipId) || shipId;
+  return group.shipIds.some((groupShipId) => (
+    groupShipId === shipId ||
+    groupShipId === familyId ||
+    resolveOriginalShipId?.(groupShipId) === familyId
+  ));
 }
 
 export function getShipBonusMatch(
@@ -328,13 +338,14 @@ export function getShipBonusMatch(
   shipId: number,
   shipTypeId?: number | null,
   originalShipId?: number | null,
+  resolveOriginalShipId?: (shipId: number) => number,
 ): ShipBonusMatch {
   const matchedGroups: ActivityBonusGroup[] = [];
   const namedGroups: ActivityBonusGroup[] = [];
   const typeGroups: ActivityBonusGroup[] = [];
 
   for (const group of groups) {
-    const namedMatch = shipMatchesGroup(group, shipId, originalShipId);
+    const namedMatch = shipMatchesGroup(group, shipId, originalShipId, resolveOriginalShipId);
     const typeMatch = !!shipTypeId && group.shipTypeIds.includes(shipTypeId);
 
     if (!namedMatch && !typeMatch) continue;
