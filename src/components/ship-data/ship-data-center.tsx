@@ -20,9 +20,9 @@ import {
   isCustomLockTagColor,
 } from "@/lib/lock-tag-colors";
 import { createMasterLookup } from "@/lib/master-data";
-import { parseNoro6Data, type Noro6Preview } from "@/lib/noro6";
+import { getNoro6ShipUniqueId, parseNoro6Data, type Noro6Preview } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
-import { filterRowsByLockTag } from "@/lib/frontend-ux";
+import { filterRowsByLockTag, getLockAssignmentsForViewer } from "@/lib/frontend-ux";
 
 function baseMin(raw: number | number[] | undefined): number {
   if (Array.isArray(raw)) return raw[0] ?? 0;
@@ -140,18 +140,20 @@ function formatSyncTime(value: string | null) {
 export function ShipDataCenter({
   initialShipData,
   initialLastShipDataUpdatedAt,
+  currentUserId,
   currentUserName,
   currentActivityName,
   lockTags,
-  lockAssignmentsByTagId,
+  lockAssignmentsByUserId,
   activityOverview,
 }: {
   initialShipData: string;
   initialLastShipDataUpdatedAt: string | null;
+  currentUserId: string;
   currentUserName: string;
   currentActivityName: string;
   lockTags: DashboardLockTag[];
-  lockAssignmentsByTagId: Record<string, string[]>;
+  lockAssignmentsByUserId: Record<string, Record<string, string[]>>;
   activityOverview: ActivityOverview;
 }) {
   const { masterData, error: masterDataError, isLoading: masterDataLoading } = useMasterData();
@@ -231,11 +233,14 @@ export function ShipDataCenter({
   const parsedShips = useMemo(() => {
     if (!shipData.trim()) return [] as ShipRow[];
     try {
-      return parseNoro6Data(shipData).ships.map((ship, index) => {
+      const occurrenceByShipId = new Map<number, number>();
+      return parseNoro6Data(shipData).ships.map((ship) => {
+        const occurrence = occurrenceByShipId.get(ship.id) ?? 0;
+        occurrenceByShipId.set(ship.id, occurrence + 1);
         const base = masterLookup.shipBaseById.get(ship.id);
         const mod = ship.st ?? [];
         return {
-          rowId: `${ship.id}-${index}`,
+          rowId: getNoro6ShipUniqueId(ship.id, occurrence),
           id: ship.id,
           orig: masterLookup.origByShipId.get(ship.id) ?? ship.id,
           name: masterLookup.shipNameById.get(ship.id) ?? `未知舰船 ID ${ship.id}`,
@@ -284,9 +289,14 @@ export function ShipDataCenter({
     return opts;
   }, [parsedShips]);
 
+  const viewerLockAssignmentsByTagId = useMemo(
+    () => getLockAssignmentsForViewer(viewerId, currentUserId, lockAssignmentsByUserId),
+    [currentUserId, lockAssignmentsByUserId, viewerId],
+  );
+
   const filteredShips = useMemo(() => {
     let list = sortedShips;
-    list = filterRowsByLockTag(list, selectedLockTagId, lockAssignmentsByTagId);
+    list = filterRowsByLockTag(list, selectedLockTagId, viewerLockAssignmentsByTagId);
     if (stypeFilter !== 0) {
       list = list.filter((s) => s.stype === stypeFilter);
     }
@@ -295,7 +305,7 @@ export function ShipDataCenter({
       list = list.filter((s) => s.name.toLowerCase().includes(kw));
     }
     return list;
-  }, [lockAssignmentsByTagId, searchText, selectedLockTagId, sortedShips, stypeFilter]);
+  }, [searchText, selectedLockTagId, sortedShips, stypeFilter, viewerLockAssignmentsByTagId]);
 
 
   function handleSort(key: SortKey) {

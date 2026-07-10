@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildNoro6Preview, normalizeNoro6Input } from "@/lib/noro6";
+import { buildNoro6Preview, deriveShipStock, normalizeNoro6Input } from "@/lib/noro6";
 
 const lookup = {
   shipNameById: new Map([
@@ -71,4 +71,17 @@ test("buildNoro6Preview preserves existing equipment for ship-only imports", () 
   assert.equal(preview.shipCount, 1);
   assert.equal(preview.equipmentCount, 1);
   assert.equal(JSON.parse(preview.normalizedData).items.length, 1);
+});
+
+test("deriveShipStock uses per-ship occurrence ids for lock assignments", () => {
+  const stocks = deriveShipStock(JSON.stringify({
+    ships: [
+      { id: 101, lv: 20 },
+      { id: 102, lv: 30 },
+      { id: 101, lv: 40 },
+    ],
+    items: [],
+  }));
+
+  assert.deepEqual(stocks.map((stock) => stock.uniqueId), ["101:0", "102:0", "101:1"]);
 });

@@ -42,6 +42,10 @@ export type ShipStock = {
   asw: number;
 };
 
+export function getNoro6ShipUniqueId(shipId: number, occurrence: number) {
+  return `${shipId}:${occurrence}`;
+}
+
 export function extractNoro6JsonText(value: string) {
   const trimmed = value.trim();
   const marker = "#import:";
@@ -236,7 +240,7 @@ export function deriveShipStock(
     const base = masterByShipId.get(ship.id);
 
     return {
-      uniqueId: `${ship.id}:${occurrence}`,
+      uniqueId: getNoro6ShipUniqueId(ship.id, occurrence),
       shipId: ship.id,
       level: ship.lv,
       firepower: baseMin(base?.api_houg) + (mod[0] ?? 0),

@@ -22,18 +22,18 @@ export default async function DashboardPage() {
       : [],
     activity
       ? prisma.lockPlan.findMany({
-          where: { userId: user.id, tag: { activityId: activity.id, isActive: true } },
-          select: { tagId: true, assignedData: true },
+          where: { tag: { activityId: activity.id, isActive: true } },
+          select: { userId: true, tagId: true, assignedData: true },
         })
       : [],
     readActivityOverview(activity?.id, activity?.name ?? "暂无活动"),
   ]);
-  const lockAssignmentsByTagId = Object.fromEntries(
-    lockPlans.map((plan) => [
-      plan.tagId,
-      parseAssignments(plan.assignedData).flatMap((assignment) => assignment ? [assignment.uniqueId] : []),
-    ]),
-  );
+  const lockAssignmentsByUserId: Record<string, Record<string, string[]>> = {};
+  for (const plan of lockPlans) {
+    lockAssignmentsByUserId[plan.userId] ??= {};
+    lockAssignmentsByUserId[plan.userId][plan.tagId] = parseAssignments(plan.assignedData)
+      .flatMap((assignment) => assignment ? [assignment.uniqueId] : []);
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -51,10 +51,11 @@ export default async function DashboardPage() {
       <ShipDataCenter
         initialShipData={user.shipData ?? ""}
         initialLastShipDataUpdatedAt={user.lastShipDataUpdatedAt?.toISOString() ?? null}
+        currentUserId={user.id}
         currentUserName={user.name}
         currentActivityName={activity?.name ?? "暂无活动"}
         lockTags={lockTags}
-        lockAssignmentsByTagId={lockAssignmentsByTagId}
+        lockAssignmentsByUserId={lockAssignmentsByUserId}
         activityOverview={activityOverview}
       />
     </div>

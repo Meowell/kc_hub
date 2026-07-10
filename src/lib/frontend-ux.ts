@@ -18,6 +18,14 @@ export function filterRowsByLockTag<T extends { rowId: string }>(
   return rows.filter((row) => selected.has(row.rowId));
 }
 
+export function getLockAssignmentsForViewer(
+  viewerId: string | null,
+  currentUserId: string,
+  assignmentsByUserId: Record<string, Record<string, string[]>>,
+) {
+  return assignmentsByUserId[viewerId ?? currentUserId] ?? {};
+}
+
 export function shouldFlushLatestSnapshot(pending: string | null, saved: string | null, inFlight: boolean) {
   return !inFlight && !!pending && pending !== saved;
 }
