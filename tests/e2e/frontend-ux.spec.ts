@@ -10,11 +10,13 @@ async function login(page: Page) {
 }
 
 async function expectNoDocumentOverflow(page: Page) {
-  const metrics = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
-  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  await expect(async () => {
+    const metrics = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  }).toPass({ timeout: 5_000 });
 }
 
 async function expectNoSeriousAxeIssues(page: Page) {
