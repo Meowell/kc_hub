@@ -111,7 +111,7 @@ export function ShipPickerModal({
         onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="sm:w-[calc(100vw-3rem)] sm:!max-w-[1320px]">
+      <DialogContent className="sm:w-[calc(100vw-3rem)] sm:!max-w-[1000px]">
         <DialogHeader>
           <DialogTitle>选择舰娘</DialogTitle>
           <DialogDescription>
@@ -167,7 +167,7 @@ export function ShipPickerModal({
             {ships.length === 0 ? "该提督暂无舰船数据" : "没有匹配的舰船"}
           </p>
         ) : (
-          <div className="grid max-h-[65vh] grid-cols-1 gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid max-h-[56vh] grid-cols-1 gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredShips.map((ship) => {
               const lock = shipLocks.get(ship.uniqueId);
               const hasCustomLockColor = isCustomLockTagColor(lock?.tagColorClass);
@@ -195,7 +195,7 @@ export function ShipPickerModal({
                     "relative flex min-h-[96px] items-center rounded-lg border border-slate-200 px-3 py-2.5 text-left transition hover:shadow focus:outline-none focus:ring-2 focus:ring-primary/50",
                     lock
                       ? cn("border-transparent", getLockTagColorClassName(lock.tagColorClass), !hasCustomLockColor && "text-slate-800")
-                      : "bg-white hover:bg-slate-50",
+                      : "border-slate-300 bg-slate-200 hover:bg-slate-100",
                   )}
                   style={lock ? getLockTagColorStyle(lock.tagColorClass) : undefined}
                 >
