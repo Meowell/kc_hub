@@ -111,7 +111,7 @@ export function ShipPickerModal({
         onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="sm:w-[calc(100vw-3rem)] sm:!max-w-[1320px]">
         <DialogHeader>
           <DialogTitle>选择舰娘</DialogTitle>
           <DialogDescription>
@@ -167,7 +167,7 @@ export function ShipPickerModal({
             {ships.length === 0 ? "该提督暂无舰船数据" : "没有匹配的舰船"}
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-2 max-h-[60vh] overflow-auto pr-1">
+          <div className="grid max-h-[65vh] grid-cols-1 gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredShips.map((ship) => {
               const lock = shipLocks.get(ship.uniqueId);
               const hasCustomLockColor = isCustomLockTagColor(lock?.tagColorClass);
@@ -192,38 +192,40 @@ export function ShipPickerModal({
                   role="button"
                   tabIndex={0}
                   className={cn(
-                    "relative flex min-h-[82px] items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left transition hover:shadow focus:outline-none focus:ring-2 focus:ring-primary/50",
+                    "relative flex min-h-[96px] items-center rounded-lg border border-slate-200 px-3 py-2.5 text-left transition hover:shadow focus:outline-none focus:ring-2 focus:ring-primary/50",
                     lock
                       ? cn("border-transparent", getLockTagColorClassName(lock.tagColorClass), !hasCustomLockColor && "text-slate-800")
                       : "bg-white hover:bg-slate-50",
                   )}
                   style={lock ? getLockTagColorStyle(lock.tagColorClass) : undefined}
                 >
-                  {bonusMatch.hasAnyBonus && (
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setBonusDetail({ shipName, match: bonusMatch });
-                      }}
-                      className={cn(
-                        "absolute right-2 top-2 flex max-w-[46%] items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold",
-                        bonusMatch.hasNamedBonus
-                          ? "bg-red-500/10 text-red-700 ring-1 ring-red-500/20"
-                          : "bg-slate-200/80 text-slate-600",
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className={cn("flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px]", hasCustomLockColor ? "text-inherit" : "text-slate-700")}>
+                        <span className={cn("font-semibold", levelColor(ship.level))}>Lv{ship.level}</span>
+                        <span className={hasCustomLockColor ? "text-inherit" : "text-slate-700"}>{getShipType(ship.shipId)}</span>
+                        <span className={hasCustomLockColor ? "text-inherit" : "text-slate-700"}>ID {ship.shipId}</span>
+                      </div>
+                      {bonusMatch.hasAnyBonus && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setBonusDetail({ shipName, match: bonusMatch });
+                          }}
+                          className={cn(
+                            "flex max-w-[58%] shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                            bonusMatch.hasNamedBonus
+                              ? "bg-red-500/10 text-red-700 ring-1 ring-red-500/20"
+                              : "bg-slate-200/80 text-slate-600",
+                          )}
+                          title="查看舰船倍卡"
+                        >
+                          <BadgePercent className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{bonusMatch.groupLabel}</span>
+                          <span className="shrink-0">{bonusMatch.multiplierLabel}</span>
+                        </button>
                       )}
-                      title="查看舰船倍卡"
-                    >
-                      <BadgePercent className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{bonusMatch.groupLabel}</span>
-                      <span className="shrink-0">{bonusMatch.multiplierLabel}</span>
-                    </button>
-                  )}
-                  <div className="min-w-0 flex-1 pr-4">
-                    <div className={cn("flex items-center gap-1.5 text-[10px]", hasCustomLockColor ? "text-inherit" : "text-slate-700")}>
-                      <span className={cn("font-semibold", levelColor(ship.level))}>Lv{ship.level}</span>
-                      <span className={hasCustomLockColor ? "text-inherit" : "text-slate-700"}>{getShipType(ship.shipId)}</span>
-                      <span className={hasCustomLockColor ? "text-inherit" : "text-slate-700"}>ID {ship.shipId}</span>
                     </div>
                     <p className={cn(
                       "truncate text-sm font-medium mt-0.5",
@@ -233,7 +235,7 @@ export function ShipPickerModal({
                       {shipName}
                     </p>
                     {/* Stats row */}
-                    <div className={cn("mt-1 flex gap-1.5 text-[10px]", hasCustomLockColor ? "text-inherit opacity-80" : "text-slate-500")}>
+                    <div className={cn("mt-2 flex gap-2 text-[11px]", lock && "pr-24", hasCustomLockColor ? "text-inherit opacity-80" : "text-slate-500")}>
                       <span>火{ship.firepower}</span>
                       <span>雷{ship.torpedo}</span>
                       <span>空{ship.antiAir}</span>

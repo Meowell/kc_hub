@@ -10,6 +10,9 @@ import { requireCurrentUser } from "@/lib/auth";
 import { canManageSharedResource } from "@/lib/collaboration";
 import { prisma } from "@/lib/prisma";
 
+const widePageClassName =
+  "relative left-1/2 w-[calc(100vw-2rem)] max-w-[1800px] -translate-x-1/2 space-y-6 sm:w-[calc(100vw-3rem)] xl:w-[calc(100vw-5rem)]";
+
 export default async function LockPlanGlobalPage({
   searchParams,
 }: {
@@ -25,7 +28,7 @@ export default async function LockPlanGlobalPage({
     }
 
     return (
-      <div className="space-y-6">
+      <div className={widePageClassName} data-testid="lock-plan-page">
         <ActivitySwitcher activities={activities} currentActivityId={null} showDaily={false} canCreateActivity={canManageSharedResource(currentUser)} />
         <Panel
           eyebrow="LOCK MATRIX"
@@ -97,7 +100,7 @@ export default async function LockPlanGlobalPage({
   });
 
   return (
-    <div className="space-y-6">
+    <div className={widePageClassName} data-testid="lock-plan-page">
       <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} showDaily={false} canCreateActivity={canManageSharedResource(currentUser)} />
       <LockPlanGodView
         key={scope.scopeKey}
