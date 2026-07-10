@@ -261,8 +261,9 @@ export function TagLockColumn({
               type="button"
               disabled={visibleCount <= 1}
               onClick={() => setSlotCount((prev) => Math.max(1, prev - 1))}
+              aria-label={`减少${tagName}槽位`}
               className={cn(
-                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-inherit",
+                "flex h-6 w-6 items-center justify-center rounded text-xs font-bold transition text-inherit",
                 visibleCount <= 1
                   ? "opacity-30 cursor-not-allowed"
                   : "hover:bg-black/10",
@@ -277,8 +278,9 @@ export function TagLockColumn({
               type="button"
               disabled={visibleCount >= MAX_SLOTS}
               onClick={() => setSlotCount((prev) => Math.min(MAX_SLOTS, prev + 1))}
+              aria-label={`增加${tagName}槽位`}
               className={cn(
-                "flex h-5 w-5 items-center justify-center rounded text-xs font-bold transition text-inherit",
+                "flex h-6 w-6 items-center justify-center rounded text-xs font-bold transition text-inherit",
                 visibleCount >= MAX_SLOTS
                   ? "opacity-30 cursor-not-allowed"
                   : "hover:bg-black/10",
