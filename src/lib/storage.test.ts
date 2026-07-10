@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { isUploadedImageFile, saveUploadedImage, type UploadedImageFile } from "./storage";
+import {
+  isUploadedImageFile,
+  readUploadedImage,
+  saveUploadedImage,
+  type UploadedImageFile,
+} from "./storage";
 
 function createImageFile(type: string, bytes: number[]): UploadedImageFile {
   const contents = Uint8Array.from(bytes);
@@ -33,11 +38,20 @@ describe("image storage", () => {
         assert.match(imageUrl, /^\/uploads\/[A-Za-z0-9._-]+\.jpg$/);
         const stored = await readFile(path.join(uploadDir, path.basename(imageUrl)));
         assert.deepEqual([...stored], [0xff, 0xd8, 0xff, 0xd9]);
+
+        const served = await readUploadedImage(path.basename(imageUrl));
+        assert.equal(served?.contentType, "image/jpeg");
+        assert.deepEqual([...(served?.contents ?? [])], [0xff, 0xd8, 0xff, 0xd9]);
       }
     } finally {
       if (previousUploadDir === undefined) delete process.env.UPLOAD_DIR;
       else process.env.UPLOAD_DIR = previousUploadDir;
       await rm(uploadDir, { recursive: true, force: true });
     }
+  });
+
+  it("rejects unsupported and traversal upload paths", async () => {
+    assert.equal(await readUploadedImage("../secret.jpg"), null);
+    assert.equal(await readUploadedImage("script.svg"), null);
   });
 });

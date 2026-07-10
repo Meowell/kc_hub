@@ -1,4 +1,4 @@
-import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 
 const allowedImageTypes = new Map([
@@ -7,6 +7,13 @@ const allowedImageTypes = new Map([
   ["image/png", "png"],
   ["image/webp", "webp"],
   ["image/gif", "gif"],
+]);
+
+const imageTypesByExtension = new Map([
+  ["jpg", "image/jpeg"],
+  ["png", "image/png"],
+  ["webp", "image/webp"],
+  ["gif", "image/gif"],
 ]);
 
 export type UploadedImageFile = {
@@ -48,6 +55,25 @@ export async function saveUploadedImage(file: UploadedImageFile) {
 
 export function isUploadedFileUrl(url: string) {
   return /^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(url);
+}
+
+export async function readUploadedImage(fileName: string) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(fileName)) return null;
+
+  const extension = path.extname(fileName).slice(1).toLowerCase();
+  const contentType = imageTypesByExtension.get(extension);
+  if (!contentType) return null;
+
+  const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
+  const baseDir = path.resolve(uploadDir);
+  const fullPath = path.resolve(baseDir, fileName);
+  if (!fullPath.startsWith(`${baseDir}${path.sep}`)) return null;
+
+  try {
+    return { contents: await readFile(fullPath), contentType };
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteUploadedFile(url: string) {
