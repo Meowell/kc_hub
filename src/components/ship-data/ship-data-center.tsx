@@ -532,7 +532,7 @@ export function ShipDataCenter({
 
   const cardBase =
     "min-w-0 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm shadow-lg shadow-black/10";
-  const topCardClass = "lg:min-h-[280px]";
+  const topCardClass = "lg:h-[280px]";
 
   const thClass =
     "text-center px-1.5 font-medium text-slate-400 select-none transition-colors";
@@ -556,7 +556,7 @@ export function ShipDataCenter({
       {masterDataLoading && <p role="status" className="rounded-md border border-primary/25 bg-primary/10 px-4 py-3 text-sm text-sky-100">正在加载舰船与装备主数据…</p>}
       {masterDataError && <p role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">主数据加载失败，当前仅显示可识别的基础数据。刷新页面可重试。</p>}
       {/* Row 1: noro6 import card + placeholders */}
-      <div className="grid grid-cols-1 items-stretch gap-3 sm:gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-3 sm:gap-4 lg:grid-cols-3">
         {/* noro6 import card */}
         <div className={cn(cardBase, topCardClass, "p-4")}>
           <form onSubmit={onPreview} className="h-full space-y-2.5 lg:overflow-y-auto lg:pr-1">
@@ -636,18 +636,6 @@ export function ShipDataCenter({
                 onClick={savePreview}
               >
                 {isSaving ? "更新中..." : "确认更新"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-8 text-xs sm:col-span-2"
-                onClick={() => {
-                  navigator.clipboard.writeText(inputData).then(
-                    () => setMessage("已复制到剪贴板"),
-                  );
-                }}
-              >
-                复制输入
               </Button>
             </div>
           </form>
