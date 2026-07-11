@@ -35,7 +35,14 @@ export function Dialog({ open, onOpenChange, children }: { open: boolean; onOpen
   const descriptionId = React.useId();
   const contentRef = React.useRef<HTMLDivElement>(null);
   const restoreFocusRef = React.useRef<HTMLElement | null>(null);
+  const onOpenChangeRef = React.useRef(onOpenChange);
   const [mounted, setMounted] = React.useState(false);
+
+  onOpenChangeRef.current = onOpenChange;
+
+  const setOpen = React.useCallback((nextOpen: boolean) => {
+    onOpenChangeRef.current(nextOpen);
+  }, []);
 
   React.useEffect(() => setMounted(true), []);
 
@@ -53,7 +60,7 @@ export function Dialog({ open, onOpenChange, children }: { open: boolean; onOpen
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onOpenChange(false);
+        setOpen(false);
         return;
       }
       if (event.key !== "Tab" || !contentRef.current) return;
@@ -81,18 +88,18 @@ export function Dialog({ open, onOpenChange, children }: { open: boolean; onOpen
       document.removeEventListener("keydown", onKeyDown);
       window.setTimeout(() => restoreFocusRef.current?.focus());
     };
-  }, [open, onOpenChange]);
+  }, [open, setOpen]);
 
   if (!open || !mounted) return null;
 
   return createPortal(
-    <DialogContext.Provider value={{ setOpen: onOpenChange, titleId, descriptionId, contentRef }}>
+    <DialogContext.Provider value={{ setOpen, titleId, descriptionId, contentRef }}>
       <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
         <button
           type="button"
           aria-label="关闭弹层"
           className="absolute inset-0 cursor-default bg-black/70 backdrop-blur-sm"
-          onClick={() => onOpenChange(false)}
+          onClick={() => setOpen(false)}
         />
         {children}
       </div>

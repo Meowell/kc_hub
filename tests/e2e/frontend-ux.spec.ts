@@ -92,6 +92,68 @@ test("activity scope survives navigation and lock plan has mobile collaboration 
   }
 });
 
+test("ship picker keeps focus while an IME composition updates search results", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "IME regression only needs one Chromium viewport.");
+
+  const previousResponse = await page.request.get("/api/users/ship-data");
+  const previous = await previousResponse.json() as { shipData?: string };
+  const restoreShipData = previous.shipData?.trim() || JSON.stringify({ ships: [], items: [] });
+  const suffix = `${testInfo.project.name}-${Date.now()}`;
+  const activityResponse = await page.request.post("/api/activities", {
+    data: { name: `输入法验收-${suffix}` },
+  });
+  const activity = await activityResponse.json() as { activity: { id: string } };
+  expect(activityResponse.ok()).toBe(true);
+  const tagResponse = await page.request.post("/api/lock-tags", {
+    data: {
+      activityId: activity.activity.id,
+      name: `输入法贴条-${suffix}`,
+      colorClass: "#d5c6bb",
+    },
+  });
+  expect(tagResponse.ok()).toBe(true);
+
+  const updateResponse = await page.request.put("/api/users/ship-data", {
+    data: {
+      shipData: JSON.stringify({
+        ships: [{ id: 102, lv: 35, st: [] }],
+        items: [],
+      }),
+    },
+  });
+  expect(updateResponse.ok()).toBe(true);
+
+  await page.goto(`/lock-plan?activityId=${activity.activity.id}`);
+  await page.getByText("选船", { exact: true }).first().click();
+
+  const search = page.getByPlaceholder("搜索舰名或 ID");
+  await expect(search).toBeVisible();
+  await search.click();
+  await search.evaluate((element) => {
+    element.dispatchEvent(new CompositionEvent("compositionstart", {
+      bubbles: true,
+      data: "",
+    }));
+  });
+  await search.pressSequentially("qian", { delay: 30 });
+
+  await expect(search).toHaveValue("qian");
+  await expect(search).toBeFocused();
+
+  await search.evaluate((element) => {
+    element.dispatchEvent(new CompositionEvent("compositionend", {
+      bubbles: true,
+      data: "千",
+    }));
+  });
+  await search.fill("千");
+  await expect(page.getByText("千歳", { exact: true })).toBeVisible();
+
+  await page.request.put("/api/users/ship-data", {
+    data: { shipData: restoreShipData },
+  });
+});
+
 test("dirty strategy draft is guarded by an accessible focus-trapped dialog", async ({ page }, testInfo) => {
   await page.goto("/strategy");
   await page.getByRole("button", { name: "新建攻略" }).click();
