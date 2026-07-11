@@ -46,13 +46,36 @@ export const routineRecordSchema = z.object({
 export const strategyPostSchema = z.object({
   id: z.string().optional(),
   activityId: activityIdSchema.optional().nullable(),
-  phaseName: z.string().min(1).max(80),
-  title: z.string().min(1).max(120),
-  content: z.string().min(1).max(20000),
+  sectionId: z.string().optional().nullable(),
+  phaseName: z.string().max(80).default(""),
+  title: z.string().max(120).default(""),
+  content: z.string().min(1).max(1000000),
+  contentFormat: z.enum(["markdown", "tiptap-json-v1"]).optional().default("markdown"),
+  status: z.enum(["draft", "published"]).optional(),
+  revision: z.number().int().positive().optional(),
+  plainText: z.string().max(200000).optional().default(""),
   fleetImageUrl: z.string().max(500).optional().nullable(),
   airbaseImageUrl: z.string().max(500).optional().nullable(),
   routineCardIds: z.string().max(500).optional().nullable(),
   isPinned: z.boolean().optional(),
+});
+
+export const strategyMapSchema = z.object({
+  id: z.string().optional(),
+  activityId: z.string().min(1),
+  code: z.string().trim().min(1).max(20).transform((value) => value.toUpperCase()),
+  sortOrder: z.number().int().min(0).optional(),
+  isOpenForPosts: z.boolean().optional(),
+  isDeleted: z.boolean().optional(),
+});
+
+export const strategySectionSchema = z.object({
+  id: z.string().optional(),
+  strategyMapId: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  sortOrder: z.number().int().min(0).optional(),
+  lockTagIds: z.array(z.string().min(1)).max(20).optional().default([]),
+  isDeleted: z.boolean().optional(),
 });
 
 export const tagColorClasses = [

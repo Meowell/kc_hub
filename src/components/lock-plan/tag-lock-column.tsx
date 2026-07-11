@@ -45,6 +45,7 @@ type TagLockColumnProps = {
   onReorder?: (tagId: string, newAssignments: (LockAssignment | null)[]) => void;
   onDropShip?: (targetTagId: string, uniqueId: string, shipId: number, sourceTagId: string, targetIndex: number) => void;
   readOnly?: boolean;
+  highlighted?: boolean;
 };
 
 const MAX_COLS = 3;
@@ -78,7 +79,7 @@ function saveSlotCount(tagId: string, count: number) {
 export function TagLockColumn({
   tagId, tagName, tagColorClass, assignedData, ships, userId,
   getShipName, getShipType, bonusGroups = [],
-  onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false,
+  onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false, highlighted = false,
 }: TagLockColumnProps) {
   const assignments = useMemo(() => parseAssignments(assignedData), [assignedData]);
 
@@ -237,9 +238,11 @@ export function TagLockColumn({
 
   return (
     <div
+      data-lock-tag-id={tagId}
       className={cn(
         "flex w-fit flex-col rounded-xl border border-slate-700/50 bg-slate-800/60 p-3",
         columnDragOver && "ring-2 ring-blue-400/50",
+        highlighted && "ring-2 ring-sky-300 ring-offset-2 ring-offset-slate-950",
       )}
       onDragOver={handleDragOver}
       onDragEnter={handleColumnDragEnter}

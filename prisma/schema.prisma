@@ -8,23 +8,25 @@ datasource db {
 }
 
 model User {
-  id                    String          @id @default(cuid())
-  name                  String          @unique
+  id                    String             @id @default(cuid())
+  name                  String             @unique
   pinCode               String
-  role                  String          @default("member")
+  role                  String             @default("member")
   avatarUrl             String?
   backgroundUrl         String?
   shipData              String?
   lastShipDataUpdatedAt DateTime?
-  food                  Int             @default(0)
+  food                  Int                @default(0)
   routineRecords        RoutineRecord[]
   strategyPosts         StrategyPost[]
+  strategyAssets        StrategyAsset[]
+  strategyRevisions     StrategyRevision[] @relation("StrategyRevisionCreator")
   lockPlans             LockPlan[]
   auditLogs             AuditLog[]
   dailyCheckIns         DailyCheckIn[]
   gameScores            GameScore[]
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 }
 
 model Activity {
@@ -36,6 +38,7 @@ model Activity {
   sortOrder      Int             @default(0)
   routineRecords RoutineRecord[]
   strategyPosts  StrategyPost[]
+  strategyMaps   StrategyMap[]
   lockTags       LockTag[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -82,43 +85,135 @@ model RoutineRecord {
 }
 
 model StrategyPost {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
   activityId      String?
+  sectionId       String?
   phaseName       String
   title           String
   content         String
+  contentFormat   String    @default("markdown")
+  status          String    @default("published")
+  revision        Int       @default(1)
+  plainText       String    @default("")
+  publishedAt     DateTime?
   fleetImageUrl   String?
   airbaseImageUrl String?
   routineCardIds  String?
-  isDeleted       Boolean  @default(false)
-  isPinned        Boolean  @default(false)
+  isDeleted       Boolean   @default(false)
+  isPinned        Boolean   @default(false)
   updatedById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  activity Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity  Activity?          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section   StrategySection?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  assets    StrategyAsset[]
+  revisions StrategyRevision[]
 
+  @@unique([sectionId, userId])
   @@index([activityId])
+  @@index([sectionId, status, updatedAt])
   @@index([activityId, isDeleted, isPinned])
   @@index([userId])
   @@index([phaseName])
   @@index([createdAt])
 }
 
+model StrategyMap {
+  id             String   @id @default(cuid())
+  activityId     String
+  code           String
+  sortOrder      Int      @default(0)
+  isOpenForPosts Boolean  @default(false)
+  isDeleted      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  activity Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  sections StrategySection[]
+
+  @@unique([activityId, code])
+  @@index([activityId, isDeleted, sortOrder])
+}
+
+model StrategySection {
+  id            String   @id @default(cuid())
+  strategyMapId String
+  name          String
+  sortOrder     Int      @default(0)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  strategyMap StrategyMap              @relation(fields: [strategyMapId], references: [id], onDelete: Cascade)
+  lockTags    StrategySectionLockTag[]
+  posts       StrategyPost[]
+
+  @@unique([strategyMapId, name])
+  @@index([strategyMapId, isDeleted, sortOrder])
+}
+
+model StrategySectionLockTag {
+  sectionId String
+  lockTagId String
+  sortOrder Int    @default(0)
+
+  section StrategySection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  lockTag LockTag         @relation(fields: [lockTagId], references: [id], onDelete: Cascade)
+
+  @@id([sectionId, lockTagId])
+  @@index([lockTagId])
+}
+
+model StrategyAsset {
+  id             String   @id @default(cuid())
+  strategyPostId String
+  userId         String
+  url            String   @unique
+  mimeType       String
+  size           Int
+  width          Int?
+  height         Int?
+  createdAt      DateTime @default(now())
+
+  strategyPost StrategyPost @relation(fields: [strategyPostId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([strategyPostId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model StrategyRevision {
+  id             String   @id @default(cuid())
+  strategyPostId String
+  createdById    String
+  revision       Int
+  content        String
+  contentFormat  String
+  createdAt      DateTime @default(now())
+
+  strategyPost StrategyPost @relation(fields: [strategyPostId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("StrategyRevisionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([strategyPostId, revision])
+  @@index([strategyPostId, createdAt])
+}
+
 model LockTag {
-  id         String     @id @default(cuid())
-  activityId String?
-  scopeKey   String     @default("daily")
-  name       String
-  colorClass String
-  sortOrder  Int        @default(0)
-  isActive   Boolean    @default(true)
-  lockPlans  LockPlan[]
-  activity   Activity?  @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id               String                   @id @default(cuid())
+  activityId       String?
+  scopeKey         String                   @default("daily")
+  name             String
+  colorClass       String
+  sortOrder        Int                      @default(0)
+  isActive         Boolean                  @default(true)
+  lockPlans        LockPlan[]
+  strategySections StrategySectionLockTag[]
+  activity         Activity?                @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
 
   @@unique([scopeKey, name])
   @@index([activityId, sortOrder])

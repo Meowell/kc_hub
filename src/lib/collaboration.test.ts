@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   canEditOwnedResource,
+  canEditStrategyPost,
   canManageSharedResource,
   getActivityArchiveData,
   getRoleLabel,
@@ -39,6 +40,12 @@ describe("collaboration helpers", () => {
     assert.equal(canEditOwnedResource({ id: "u1", role: "member" }, "u2"), false);
     assert.equal(canEditOwnedResource({ id: "u1", role: "planner" }, "u2"), true);
     assert.equal(canEditOwnedResource({ id: "u1", role: "admin" }, "u2"), true);
+  });
+
+  it("keeps section strategy posts exclusively editable by their author", () => {
+    assert.equal(canEditStrategyPost({ id: "u1", role: "member" }, "u1", "section-1"), true);
+    assert.equal(canEditStrategyPost({ id: "u1", role: "admin" }, "u2", "section-1"), false);
+    assert.equal(canEditStrategyPost({ id: "u1", role: "admin" }, "u2", null), true);
   });
 
   it("treats archived and hidden activities as read-only", () => {

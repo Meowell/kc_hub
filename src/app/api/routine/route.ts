@@ -11,12 +11,37 @@ export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
   const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
   const seaArea = searchParams.get("seaArea") ?? undefined;
   const activityId = normalizeActivityId(searchParams.get("activityId"));
+  const forStrategy = searchParams.get("forStrategy") === "1";
+  const query = searchParams.get("q")?.trim() ?? "";
+  const uploaderId = searchParams.get("uploaderId")?.trim() ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get("pageSize") ?? "10", 10) || 10));
 
-  const where = getVisibleContentWhere({ userId: user.id, activityId, ...(seaArea ? { seaArea } : {}) });
+  if (id && forStrategy) {
+    const record = await prisma.routineRecord.findFirst({
+      where: { id, isDeleted: false },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    if (!record) return NextResponse.json({ error: "作业卡不存在" }, { status: 404 });
+    return NextResponse.json({ record });
+  }
+
+  const where = getVisibleContentWhere({
+    ...(!forStrategy ? { userId: user.id } : {}),
+    activityId,
+    ...(seaArea ? { seaArea } : {}),
+    ...(uploaderId ? { userId: uploaderId } : {}),
+    ...(query ? {
+      OR: [
+        { seaArea: { contains: query } },
+        { missionName: { contains: query } },
+        { user: { name: { contains: query } } },
+      ],
+    } : {}),
+  });
 
   const [records, totalCount] = await Promise.all([
     prisma.routineRecord.findMany({
@@ -24,6 +49,7 @@ export async function GET(request: Request) {
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
+      ...(forStrategy ? { include: { user: { select: { id: true, name: true } } } } : {}),
     }),
     prisma.routineRecord.count({ where }),
   ]);

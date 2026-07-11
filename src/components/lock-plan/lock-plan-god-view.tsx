@@ -89,9 +89,10 @@ type LockPlanGodViewProps = {
   initialBonusConfig: ActivityBonusConfig;
   canManageTags?: boolean;
   canEditAllPlans?: boolean;
+  initialTagId?: string;
 };
 
-export function LockPlanGodView({ initialTags, initialUsers, activityId, currentUserId, activityLabel, isDailyScope, initialBonusConfig, canManageTags = false, canEditAllPlans = false }: LockPlanGodViewProps) {
+export function LockPlanGodView({ initialTags, initialUsers, activityId, currentUserId, activityLabel, isDailyScope, initialBonusConfig, canManageTags = false, canEditAllPlans = false, initialTagId }: LockPlanGodViewProps) {
   const { masterData } = useMasterData();
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const getShipName = useCallback(
@@ -189,7 +190,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
     targetTagName: string;
   } | null>(null);
   const pendingAssignmentRef = useRef<ShipStock | null>(null);
-  const [mobileTagId, setMobileTagId] = useState("");
+  const [mobileTagId, setMobileTagId] = useState(initialTagId ?? "");
   const [mobileView, setMobileView] = useState<"mine" | "overview" | "conflicts">("mine");
   const [mobileAction, setMobileAction] = useState<{
     uniqueId: string;
@@ -759,6 +760,16 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
   }, [activeTags, currentUser, currentUserPlans]);
 
   const selectedMobileTag = activeTags.find((tag) => tag.id === mobileTagId) ?? activeTags[0];
+
+  useEffect(() => {
+    if (!initialTagId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const target = [...document.querySelectorAll<HTMLElement>("[data-lock-tag-id]")]
+        .find((element) => element.dataset.lockTagId === initialTagId && element.getClientRects().length > 0);
+      target?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialTagId]);
   const selectedMobileAssignments = selectedMobileTag
     ? parseAssignments(currentUserPlans[selectedMobileTag.id] ?? "[]")
     : [];
@@ -1040,6 +1051,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                   handleDropShip(uid, targetTagId, uniqueId, shipId, sourceTagId, targetIndex);
                 }}
                 readOnly={!canEditAllPlans && user.userId !== currentUserId}
+                highlightTagId={initialTagId}
               />
             </div>
           );

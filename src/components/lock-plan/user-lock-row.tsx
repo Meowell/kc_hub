@@ -26,12 +26,13 @@ type UserLockRowProps = {
   onReorder?: (userId: string, tagId: string, newAssignments: (LockAssignment | null)[]) => void;
   onDropShip?: (userId: string, targetTagId: string, uniqueId: string, shipId: number, sourceTagId: string, targetIndex: number) => void;
   readOnly?: boolean;
+  highlightTagId?: string;
 };
 
 export function UserLockRow({
   userId, userName, avatarUrl, tags, plans, ships, hasShipData,
   getShipName, getShipType, bonusGroupsByTagId = {},
-  onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false,
+  onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false, highlightTagId,
 }: UserLockRowProps) {
   const planByTagId = new Map(plans.map((p) => [p.tagId, p]));
 
@@ -85,6 +86,7 @@ export function UserLockRow({
                 onReorder={(tId, newAssignments) => onReorder?.(userId, tId, newAssignments)}
                 onDropShip={(tId, uId, sId, srcTag, idx) => onDropShip?.(userId, tId, uId, sId, srcTag, idx)}
                 readOnly={readOnly}
+                highlighted={tag.id === highlightTagId}
               />
             );
           })}

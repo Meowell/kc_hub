@@ -76,7 +76,7 @@ test("activity scope survives navigation and lock plan has mobile collaboration 
   const activityId = new URL(page.url()).searchParams.get("activityId");
   expect(activityId).toBeTruthy();
 
-  const lockPlanLink = testInfo.project.name === "mobile-390"
+  const lockPlanLink = ["mobile-390", "tablet-768"].includes(testInfo.project.name)
     ? page.locator('nav[aria-label="移动端主导航"] a[href*="/lock-plan"]')
     : page.locator('header nav a[href*="/lock-plan"]');
   await lockPlanLink.click();
@@ -95,7 +95,7 @@ test("activity scope survives navigation and lock plan has mobile collaboration 
 test("dirty strategy draft is guarded by an accessible focus-trapped dialog", async ({ page }, testInfo) => {
   await page.goto("/strategy");
   await page.getByRole("button", { name: "新建攻略" }).click();
-  const homeLink = testInfo.project.name === "mobile-390"
+  const homeLink = ["mobile-390", "tablet-768"].includes(testInfo.project.name)
     ? page.locator('nav[aria-label="移动端主导航"] a[href="/home"]')
     : page.locator('header nav a[href="/home"]');
   await homeLink.click();

@@ -142,7 +142,10 @@ function AppShellContent({
 
       </header>
 
-      <main className="mx-auto min-h-[calc(100dvh-9rem)] w-full max-w-7xl px-4 pb-28 pt-6 sm:px-6 sm:py-8 lg:pb-8">
+      <main className={cn(
+        "mx-auto min-h-[calc(100dvh-9rem)] w-full px-4 pb-28 pt-6 sm:px-6 sm:py-8 lg:pb-8",
+        pathname.startsWith("/strategy") ? "max-w-[112rem]" : "max-w-7xl",
+      )}>
         {children}
       </main>
 

@@ -16,7 +16,7 @@ const widePageClassName =
 export default async function LockPlanGlobalPage({
   searchParams,
 }: {
-  searchParams: { activityId?: string };
+  searchParams: { activityId?: string; tagId?: string };
 }) {
   const currentUser = await requireCurrentUser();
   const activities = await getActiveActivities();
@@ -119,6 +119,7 @@ export default async function LockPlanGlobalPage({
         initialBonusConfig={bonusConfig}
         canManageTags={canManageSharedResource(currentUser)}
         canEditAllPlans={canManageSharedResource(currentUser)}
+        initialTagId={tags.some((tag) => tag.id === searchParams.tagId) ? searchParams.tagId : undefined}
       />
     </div>
   );

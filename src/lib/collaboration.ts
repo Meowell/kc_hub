@@ -28,6 +28,10 @@ export function canEditOwnedResource(actor: ActorLike, ownerId: string) {
   return actor.id === ownerId || canManageSharedResource(actor);
 }
 
+export function canEditStrategyPost(actor: ActorLike, ownerId: string, sectionId?: string | null) {
+  return sectionId ? actor.id === ownerId : canEditOwnedResource(actor, ownerId);
+}
+
 export function isActivityWritable(activity: ActivityStateLike) {
   if (!activity) return true;
   if (activity.isActive === false) return false;
