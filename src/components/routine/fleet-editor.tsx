@@ -9,7 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
   createFleetParser,
+  serializeDeckBuilderFleet,
+  type FleetGroupKey,
   type FleetParser,
+  type ParsedFleet,
+  type ParsedFleetKind,
   type ParsedShip,
 } from "@/lib/fleet-parser";
 import { createMasterLookup, shipTypeLabels, type MasterLookup } from "@/lib/master-data";
@@ -39,6 +43,18 @@ interface EditorShip {
   slotCount: number;
   slotCaps: number[];
   equipment: EquipSlot[];   // length = slotCount + 1 (expansion)
+}
+
+interface EditorFleetGroup {
+  key: FleetGroupKey;
+  name?: string;
+  ships: EditorShip[];
+}
+
+interface EditorFleet {
+  groups: EditorFleetGroup[];
+  kind: ParsedFleetKind;
+  fleetType: number;
 }
 
 interface StockEquip {
@@ -180,6 +196,18 @@ function normalizeFleet(ships: ParsedShip[], lookup: MasterLookup, parser: Fleet
   });
 }
 
+function normalizeParsedFleet(fleet: ParsedFleet, lookup: MasterLookup, parser: FleetParser): EditorFleet {
+  return {
+    kind: fleet.kind,
+    fleetType: fleet.fleetType,
+    groups: fleet.groups.map((group) => ({
+      key: group.key,
+      name: group.name,
+      ships: normalizeFleet(group.ships, lookup, parser),
+    })),
+  };
+}
+
 /* ── Sub-components ── */
 
 function HpBar({ hp, maxHp }: { hp: number; maxHp: number }) {
@@ -293,6 +321,7 @@ function ShipCard({
   return (
     <div
       onClick={onShipClick}
+      data-testid="fleet-ship-card"
       className={`flex min-h-[150px] flex-col gap-4 rounded-xl border bg-slate-800/60 p-4 transition-all sm:flex-row ${
         onShipClick
           ? "cursor-pointer border-slate-700/50 hover:border-blue-500/40 hover:bg-slate-800/80"
@@ -357,11 +386,13 @@ const shipStatHeaders: { key: ShipSortKey; label: string }[] = [
 function ShipPickerModal({
   stock,
   slotIndex,
+  fleetLabel,
   onSelect,
   onClose,
 }: {
   stock: StockShip[];
   slotIndex: number;
+  fleetLabel?: string;
   onSelect: (ship: StockShip) => void;
   onClose: () => void;
 }) {
@@ -396,7 +427,7 @@ function ShipPickerModal({
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="flex max-h-[100dvh] flex-col p-0 sm:max-h-[85dvh] sm:max-w-2xl">
         <DialogHeader className="mb-0 border-b border-slate-700/50 px-5 py-4">
-          <DialogTitle>选择舰娘 · 位置 {slotIndex + 1}</DialogTitle>
+          <DialogTitle>选择舰娘 · {fleetLabel ? `${fleetLabel} · ` : ""}位置 {slotIndex + 1}</DialogTitle>
           <DialogDescription className="sr-only">筛选并选择一艘舰船加入舰队。</DialogDescription>
         </DialogHeader>
         {/* Filter bar */}
@@ -557,7 +588,7 @@ export function FleetEditor({
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const fleetParser = useMemo(() => createFleetParser(masterData), [masterData]);
   const normalizeFleetForMaster = useCallback(
-    (ships: ParsedShip[]) => normalizeFleet(ships, masterLookup, fleetParser),
+    (fleet: ParsedFleet) => normalizeParsedFleet(fleet, masterLookup, fleetParser),
     [fleetParser, masterLookup],
   );
   const getTypeAbbr = useCallback(
@@ -569,14 +600,14 @@ export function FleetEditor({
     [masterLookup],
   );
   const [rawText, setRawText] = useState(initialFleetData ?? "");
-  const [fleet, setFleet] = useState<EditorShip[] | null>(() => {
+  const [fleet, setFleet] = useState<EditorFleet | null>(() => {
     if (!initialFleetData) return null;
     const result = fleetParser.parseFleetData(initialFleetData);
-    return result ? normalizeFleetForMaster(result.ships) : null;
+    return result ? normalizeFleetForMaster(result) : null;
   });
   const [error, setError] = useState("");
-  const [pickerShipSlot, setPickerShipSlot] = useState<number | null>(null);
-  const [equipTarget, setEquipTarget] = useState<{ shipIdx: number; slotIdx: number } | null>(null);
+  const [pickerShipSlot, setPickerShipSlot] = useState<{ groupIdx: number; shipIdx: number } | null>(null);
+  const [equipTarget, setEquipTarget] = useState<{ groupIdx: number; shipIdx: number; slotIdx: number } | null>(null);
 
   const stockShips = useMemo(() => loadStockShips(shipData, masterLookup), [shipData, masterLookup]);
   const stockEquips = useMemo(
@@ -589,7 +620,7 @@ export function FleetEditor({
   useEffect(() => {
     if (initialFleetData) {
       const result = fleetParser.parseFleetData(initialFleetData);
-      setFleet(result ? normalizeFleetForMaster(result.ships) : null);
+      setFleet(result ? normalizeFleetForMaster(result) : null);
       setRawText(initialFleetData);
     }
   }, [fleetParser, initialFleetData, normalizeFleetForMaster]);
@@ -602,24 +633,10 @@ export function FleetEditor({
     }
   }, [initialFleetData, readOnly]);
 
-  function serializeFleet(ships: EditorShip[]) {
-    const f1: Record<string, unknown> = {};
-    ships.forEach((s, i) => {
-      const items: Record<string, unknown> = {};
-      s.equipment.forEach((eq, ei) => {
-        if (!eq.equipId) return;
-        const key = ei === s.slotCount ? "ix" : `i${ei + 1}`;
-        items[key] = { id: eq.equipId, rf: eq.improvement ?? 0 };
-      });
-      f1[`s${i + 1}`] = { id: s.id, lv: s.level, luck: 0, items };
-    });
-    return f1;
-  }
-
-  function updateFleet(next: EditorShip[] | null) {
+  function updateFleet(next: EditorFleet | null) {
     setFleet(next);
     if (onFleetChange && next) {
-      onFleetChange(JSON.stringify({ version: 4, f1: serializeFleet(next) }));
+      onFleetChange(serializeDeckBuilderFleet(next));
     }
   }
 
@@ -631,12 +648,12 @@ export function FleetEditor({
       updateFleet(null);
       return;
     }
-    updateFleet(normalizeFleetForMaster(result.ships));
+    updateFleet(normalizeFleetForMaster(result));
   }
 
   function handleSwapShip(stockShip: StockShip) {
     if (pickerShipSlot === null || !fleet) return;
-    const next = [...fleet];
+    const { groupIdx, shipIdx } = pickerShipSlot;
     const hp = masterLookup.shipHpById.get(stockShip.shipId);
     const slotCount = fleetParser.shipSlotCountMap.get(stockShip.shipId) ?? 4;
     const caps = masterLookup.shipSlotsById.get(stockShip.shipId) ?? [];
@@ -645,7 +662,7 @@ export function FleetEditor({
       equip.push({ equipId: null, name: null });
     }
     equip.push({ equipId: null, name: null }); // expansion
-    next[pickerShipSlot] = {
+    const nextShip: EditorShip = {
       name: stockShip.name,
       id: stockShip.shipId,
       level: stockShip.level,
@@ -655,15 +672,22 @@ export function FleetEditor({
       slotCaps: caps,
       equipment: equip,
     };
-    updateFleet(next);
+    const nextGroups = fleet.groups.map((group, index) => {
+      if (index !== groupIdx) return group;
+      const ships = [...group.ships];
+      ships[shipIdx] = nextShip;
+      return { ...group, ships };
+    });
+    updateFleet({ ...fleet, groups: nextGroups });
     setPickerShipSlot(null);
   }
 
   function handleSetEquip(sel: StockEquip) {
     if (!equipTarget || !fleet) return;
-    const { shipIdx, slotIdx } = equipTarget;
-    const next = [...fleet];
-    const ship = { ...next[shipIdx] };
+    const { groupIdx, shipIdx, slotIdx } = equipTarget;
+    const group = fleet.groups[groupIdx];
+    const ships = [...group.ships];
+    const ship = { ...ships[shipIdx] };
     const equip = [...ship.equipment];
 
     if (sel.equipId === 0) {
@@ -677,23 +701,34 @@ export function FleetEditor({
       };
     }
     ship.equipment = equip;
-    next[shipIdx] = ship;
-    updateFleet(next);
+    ships[shipIdx] = ship;
+    const nextGroups = fleet.groups.map((current, index) => index === groupIdx ? { ...current, ships } : current);
+    updateFleet({ ...fleet, groups: nextGroups });
     setEquipTarget(null);
   }
 
-  function handleUnequip(shipIdx: number, slotIdx: number) {
+  function handleUnequip(groupIdx: number, shipIdx: number, slotIdx: number) {
     if (!fleet) return;
-    const next = [...fleet];
-    const ship = { ...next[shipIdx] };
+    const group = fleet.groups[groupIdx];
+    const ships = [...group.ships];
+    const ship = { ...ships[shipIdx] };
     const equip = [...ship.equipment];
     equip[slotIdx] = { equipId: null, name: null };
     ship.equipment = equip;
-    next[shipIdx] = ship;
-    updateFleet(next);
+    ships[shipIdx] = ship;
+    const nextGroups = fleet.groups.map((current, index) => index === groupIdx ? { ...current, ships } : current);
+    updateFleet({ ...fleet, groups: nextGroups });
   }
 
   const canEdit = hasStock && !readOnly;
+  const totalShipCount = fleet?.groups.reduce((total, group) => total + group.ships.length, 0) ?? 0;
+  const fleetKindLabel = fleet?.kind === "combined"
+    ? `联合舰队 · ${fleet.groups.map((group) => group.ships.length).join("+")}艘`
+    : fleet?.kind === "strike"
+      ? `游击舰队 · ${totalShipCount}艘`
+      : fleet
+        ? `通常舰队 · ${totalShipCount}艘`
+        : null;
 
   return (
     <div className="space-y-4">
@@ -730,15 +765,20 @@ export function FleetEditor({
       {/* Fleet display */}
       <div className="rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-5 shadow-lg shadow-black/10">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-slate-200">
-            {title || "主力艦隊"}
+          <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold text-slate-200">
+            <span>{title || "主力艦隊"}</span>
+            {fleetKindLabel && (
+              <span data-testid="fleet-kind" className="rounded-md border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-medium text-sky-300">
+                {fleetKindLabel}
+              </span>
+            )}
             {!hasStock && !initialFleetData && (
-              <span className="text-xs text-amber-400 ml-2 font-normal">
+              <span className="text-xs text-amber-400 font-normal">
                 （未上传舰船数据，无法换船/换装）
               </span>
             )}
             {readOnly && (
-              <span className="text-xs text-slate-500 ml-2 font-normal">（只读）</span>
+              <span className="text-xs text-slate-500 font-normal">（只读）</span>
             )}
           </h3>
           {onBack && (
@@ -749,18 +789,32 @@ export function FleetEditor({
           )}
         </div>
 
-        {fleet && fleet.length > 0 ? (
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-            {fleet.map((ship, i) => (
-              <ShipCard
-                key={i}
-                ship={ship}
-                getTypeAbbr={getTypeAbbr}
-                isPlaneEquip={isPlaneEquip}
-                onShipClick={canEdit ? () => setPickerShipSlot(i) : undefined}
-                onEquipClick={canEdit ? (slotIdx) => setEquipTarget({ shipIdx: i, slotIdx }) : undefined}
-                onUnequipSlot={canEdit ? (slotIdx) => handleUnequip(i, slotIdx) : undefined}
-              />
+        {fleet && totalShipCount > 0 ? (
+          <div className="space-y-6">
+            {fleet.groups.map((group, groupIdx) => (
+              <section key={group.key} data-testid={`fleet-group-${group.key}`} className={groupIdx > 0 ? "border-t border-slate-700/50 pt-6" : undefined}>
+                {fleet.kind === "combined" && (
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-semibold text-slate-300">
+                      {group.key === "f1" ? "第一舰队" : "第二舰队"}
+                    </h4>
+                    <span className="text-xs text-slate-500">{group.ships.length} / 6 艘</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                  {group.ships.map((ship, shipIdx) => (
+                    <ShipCard
+                      key={`${group.key}-${shipIdx}`}
+                      ship={ship}
+                      getTypeAbbr={getTypeAbbr}
+                      isPlaneEquip={isPlaneEquip}
+                      onShipClick={canEdit ? () => setPickerShipSlot({ groupIdx, shipIdx }) : undefined}
+                      onEquipClick={canEdit ? (slotIdx) => setEquipTarget({ groupIdx, shipIdx, slotIdx }) : undefined}
+                      onUnequipSlot={canEdit ? (slotIdx) => handleUnequip(groupIdx, shipIdx, slotIdx) : undefined}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         ) : (
@@ -775,7 +829,8 @@ export function FleetEditor({
       {pickerShipSlot !== null && (
         <ShipPickerModal
           stock={stockShips}
-          slotIndex={pickerShipSlot}
+          slotIndex={pickerShipSlot.shipIdx}
+          fleetLabel={fleet?.kind === "combined" ? (fleet.groups[pickerShipSlot.groupIdx]?.key === "f1" ? "第一舰队" : "第二舰队") : undefined}
           onSelect={handleSwapShip}
           onClose={() => setPickerShipSlot(null)}
         />

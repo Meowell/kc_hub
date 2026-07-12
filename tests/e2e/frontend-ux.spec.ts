@@ -154,6 +154,64 @@ test("ship picker keeps focus while an IME composition updates search results", 
   });
 });
 
+test("routine cards preserve strike and combined fleet layouts", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "Fleet layout regression only needs one desktop viewport.");
+
+  const suffix = `${testInfo.project.name}-${Date.now()}`;
+  const ship = (id: number) => ({ id, lv: 90 + id % 10, luck: 0, items: {} });
+  const fleet = (startId: number, count: number, fleetType?: number) => {
+    const value: Record<string, unknown> = fleetType ? { t: fleetType } : {};
+    for (let index = 0; index < count; index++) value[`s${index + 1}`] = ship(startId + index);
+    return value;
+  };
+  const createdIds: string[] = [];
+
+  try {
+    const combinedResponse = await page.request.post("/api/routine", {
+      data: {
+        seaArea: "E2",
+        missionName: `联合舰队验收-${suffix}`,
+        airControl: 0,
+        fleetData: JSON.stringify({ version: 4, f1: fleet(1, 6, 2), f2: fleet(101, 6, 2) }),
+      },
+    });
+    expect(combinedResponse.ok()).toBe(true);
+    createdIds.push((await combinedResponse.json()).record.id);
+
+    const strikeResponse = await page.request.post("/api/routine", {
+      data: {
+        seaArea: "E1",
+        missionName: `游击舰队验收-${suffix}`,
+        airControl: 0,
+        fleetData: JSON.stringify({ version: 4, f1: fleet(201, 7) }),
+      },
+    });
+    expect(strikeResponse.ok()).toBe(true);
+    createdIds.push((await strikeResponse.json()).record.id);
+
+    await page.goto("/routine");
+
+    const combinedCard = page.getByTestId("routine-record-card").filter({ hasText: `联合舰队验收-${suffix}` });
+    await expect(combinedCard.getByText("第一舰队", { exact: true })).toBeVisible();
+    await expect(combinedCard.getByText("第二舰队", { exact: true })).toBeVisible();
+    await combinedCard.getByRole("button", { name: "查看" }).click();
+    await expect(page.getByTestId("fleet-kind")).toHaveText("联合舰队 · 6+6艘");
+    await expect(page.getByTestId("fleet-group-f1").getByTestId("fleet-ship-card")).toHaveCount(6);
+    await expect(page.getByTestId("fleet-group-f2").getByTestId("fleet-ship-card")).toHaveCount(6);
+    await expectNoDocumentOverflow(page);
+
+    await page.getByRole("button", { name: "← 返回列表" }).click();
+    const strikeCard = page.getByTestId("routine-record-card").filter({ hasText: `游击舰队验收-${suffix}` });
+    await expect(strikeCard.getByText("游击舰队", { exact: true })).toBeVisible();
+    await strikeCard.getByRole("button", { name: "查看" }).click();
+    await expect(page.getByTestId("fleet-kind")).toHaveText("游击舰队 · 7艘");
+    await expect(page.getByTestId("fleet-group-f1").getByTestId("fleet-ship-card")).toHaveCount(7);
+    await expectNoDocumentOverflow(page);
+  } finally {
+    for (const id of createdIds) await page.request.delete(`/api/routine?id=${id}`);
+  }
+});
+
 test("dirty strategy draft is guarded by an accessible focus-trapped dialog", async ({ page }, testInfo) => {
   await page.goto("/strategy");
   await page.getByRole("button", { name: "新建攻略" }).click();

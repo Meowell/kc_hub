@@ -24,7 +24,10 @@ type DBShip = {
   luck: number;
   items: Record<string, DBItem>;
 };
-type DBFleet = Record<string, DBShip>;
+type DBFleet = Record<string, unknown> & {
+  name?: string;
+  t?: number;
+};
 
 /* ── Parsed output types ── */
 
@@ -47,9 +50,67 @@ export type ParsedShip = {
   equipment: ParsedEquipment[];
 };
 
-export type ParsedFleet = {
+export type FleetGroupKey = "f1" | "f2";
+export type ParsedFleetKind = "single" | "strike" | "combined";
+
+export type ParsedFleetGroup = {
+  key: FleetGroupKey;
+  name?: string;
   ships: ParsedShip[];
 };
+
+export type ParsedFleet = {
+  groups: ParsedFleetGroup[];
+  kind: ParsedFleetKind;
+  fleetType: number;
+};
+
+export type SerializableFleet = {
+  groups: Array<{
+    key: FleetGroupKey;
+    name?: string;
+    ships: Array<{
+      id: number;
+      level: number;
+      slotCount: number;
+      equipment: Array<{
+        equipId: number | null;
+        improvement?: number;
+      }>;
+    }>;
+  }>;
+  kind: ParsedFleetKind;
+  fleetType: number;
+};
+
+export function serializeDeckBuilderFleet(fleet: SerializableFleet): string {
+  const output: Record<string, unknown> = { version: 4 };
+
+  fleet.groups.forEach((group) => {
+    const serialized: Record<string, unknown> = {};
+    if (group.name) serialized.name = group.name;
+    if (fleet.kind === "combined") serialized.t = fleet.fleetType > 0 ? fleet.fleetType : 1;
+
+    group.ships.forEach((ship, shipIndex) => {
+      const items: Record<string, unknown> = {};
+      ship.equipment.forEach((equipment, equipmentIndex) => {
+        if (!equipment.equipId) return;
+        const key = equipmentIndex === ship.slotCount ? "ix" : `i${equipmentIndex + 1}`;
+        items[key] = { id: equipment.equipId, rf: equipment.improvement ?? 0 };
+      });
+      serialized[`s${shipIndex + 1}`] = {
+        id: ship.id,
+        lv: ship.level,
+        luck: 0,
+        items,
+      };
+    });
+
+    output[group.key] = serialized;
+  });
+
+  return JSON.stringify(output);
+}
 
 /* ── Battle Result types ── */
 
@@ -72,6 +133,8 @@ type BRSlotItem = {
 type BRFleet = {
   type?: number;
   main?: BRShip[];
+  escort?: BRShip[];
+  combined?: BRShip[];
 };
 
 /* ── Parser ── */
@@ -86,12 +149,9 @@ export function createFleetParser(masterData: MasterData = emptyMasterData) {
     equipNameById,
   } = lookup;
 
-  function parseBattleResult(json: Record<string, unknown>): ParsedFleet | null {
-    const fleet = json.fleet as BRFleet | undefined;
-    if (!fleet?.main || !Array.isArray(fleet.main)) return null;
-
+  function parseBattleShips(rawShips: BRShip[], limit: number): ParsedShip[] {
     const ships: ParsedShip[] = [];
-    for (const raw of fleet.main.slice(0, 6)) {
+    for (const raw of rawShips.slice(0, limit)) {
       if (!raw?.api_ship_id) continue;
 
       const shipName = shipNameById.get(raw.api_ship_id) ?? `ID:${raw.api_ship_id}`;
@@ -149,17 +209,37 @@ export function createFleetParser(masterData: MasterData = emptyMasterData) {
       });
     }
 
-    return ships.length > 0 ? { ships } : null;
+    return ships;
   }
 
-  function parseDeckBuilderJson(json: Record<string, unknown>): ParsedFleet | null {
-    const fleetData = json.f1 as DBFleet | undefined;
-    if (!fleetData) return null;
+  function parseBattleResult(json: Record<string, unknown>): ParsedFleet | null {
+    const fleet = json.fleet as BRFleet | undefined;
+    if (!fleet?.main || !Array.isArray(fleet.main)) return null;
 
+    const escortRaw = Array.isArray(fleet.escort)
+      ? fleet.escort
+      : Array.isArray(fleet.combined)
+        ? fleet.combined
+        : [];
+    const isCombined = escortRaw.length > 0;
+    const mainShips = parseBattleShips(fleet.main, isCombined ? 6 : 7);
+    const escortShips = parseBattleShips(escortRaw, 6);
+    if (mainShips.length === 0) return null;
+
+    const groups: ParsedFleetGroup[] = [{ key: "f1", ships: mainShips }];
+    if (escortShips.length > 0) groups.push({ key: "f2", ships: escortShips });
+
+    return {
+      groups,
+      kind: isCombined ? "combined" : mainShips.length > 6 ? "strike" : "single",
+      fleetType: isCombined && [1, 2, 3].includes(fleet.type ?? 0) ? fleet.type! : isCombined ? 1 : 0,
+    };
+  }
+
+  function parseDeckBuilderShips(fleetData: DBFleet, limit: number): ParsedShip[] {
     const ships: ParsedShip[] = [];
 
-    // Iterate s1~s6
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= limit; i++) {
       const key = `s${i}`;
       const raw = fleetData[key] as DBShip | undefined;
       if (!raw) continue;
@@ -214,8 +294,31 @@ export function createFleetParser(masterData: MasterData = emptyMasterData) {
       });
     }
 
-    if (ships.length === 0) return null;
-    return { ships };
+    return ships;
+  }
+
+  function parseDeckBuilderJson(json: Record<string, unknown>): ParsedFleet | null {
+    const f1 = json.f1 as DBFleet | undefined;
+    const f2 = json.f2 as DBFleet | undefined;
+    if (!f1) return null;
+
+    const parsedFleetType = Number(f1.t ?? f2?.t ?? 0);
+    const fleetType = Number.isFinite(parsedFleetType) && parsedFleetType > 0 ? parsedFleetType : 0;
+    const isCombined = fleetType > 0;
+    const mainShips = parseDeckBuilderShips(f1, isCombined ? 6 : 7);
+    if (mainShips.length === 0) return null;
+
+    const groups: ParsedFleetGroup[] = [{ key: "f1", name: f1.name, ships: mainShips }];
+    if (isCombined && f2) {
+      const escortShips = parseDeckBuilderShips(f2, 6);
+      if (escortShips.length > 0) groups.push({ key: "f2", name: f2.name, ships: escortShips });
+    }
+
+    return {
+      groups,
+      kind: isCombined ? "combined" : mainShips.length > 6 ? "strike" : "single",
+      fleetType,
+    };
   }
 
   function parseFleetData(text: string): ParsedFleet | null {

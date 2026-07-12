@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FleetEditor } from "@/components/routine/fleet-editor";
-import { createMasterLookup } from "@/lib/master-data";
+import { createFleetParser, type FleetParser } from "@/lib/fleet-parser";
 import { useMasterData } from "@/lib/use-master-data";
 import { useDirtyForm } from "@/components/common/dirty-guard";
 import { shouldFlushLatestSnapshot } from "@/lib/frontend-ux";
@@ -33,33 +33,26 @@ function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
   );
 }
 
-function FleetPreview({ fleetData, shipNameById }: { fleetData: string; shipNameById: Map<number, string> }) {
-  let ships: { name: string; level: number }[] = [];
-  try {
-    const json = JSON.parse(fleetData);
-    const f1 = json.f1;
-    if (f1) {
-      for (let i = 1; i <= 6; i++) {
-        const s = f1[`s${i}`];
-        if (s && s.id) {
-          ships.push({
-            name: shipNameById.get(s.id) ?? `ID:${s.id}`,
-            level: s.lv ?? 0,
-          });
-        }
-      }
-    }
-  } catch { /* ignore */ }
-
-  if (ships.length === 0) return null;
+function FleetPreview({ fleetData, fleetParser }: { fleetData: string; fleetParser: FleetParser }) {
+  const fleet = fleetParser.parseFleetData(fleetData);
+  if (!fleet) return null;
 
   return (
-    <div className="mt-3 flex items-center gap-2 flex-wrap">
-      {ships.map((s, i) => (
-        <span key={i} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] bg-slate-700/50 border border-slate-600/30 text-slate-300">
-          <span className="text-slate-500">Lv.{s.level}</span>
-          <span>{s.name}</span>
-        </span>
+    <div className="mt-3 space-y-2">
+      {fleet.groups.map((group) => (
+        <div key={group.key} className="flex flex-wrap items-center gap-2">
+          {(fleet.kind === "combined" || fleet.kind === "strike") && (
+            <span className="min-w-16 text-[11px] font-medium text-sky-400">
+              {fleet.kind === "strike" ? "游击舰队" : group.key === "f1" ? "第一舰队" : "第二舰队"}
+            </span>
+          )}
+          {group.ships.map((ship, index) => (
+            <span key={`${group.key}-${index}`} className="inline-flex items-center gap-1 rounded-md border border-slate-600/30 bg-slate-700/50 px-2 py-1 text-[11px] text-slate-300">
+              <span className="text-slate-500">Lv.{ship.level}</span>
+              <span>{ship.name}</span>
+            </span>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -447,8 +440,8 @@ function RecordsList({
   onDeleteRecord: (r: Record) => void;
 }) {
   const { masterData } = useMasterData();
-  const shipNameById = useMemo(
-    () => createMasterLookup(masterData).shipNameById,
+  const fleetParser = useMemo(
+    () => createFleetParser(masterData),
     [masterData],
   );
 
@@ -467,6 +460,7 @@ function RecordsList({
           {records.map((r, i) => (
             <div
               key={r.id}
+              data-testid="routine-record-card"
               className="rounded-xl border border-slate-700/50 bg-slate-800/70 backdrop-blur-sm p-5 shadow-lg shadow-black/10 group hover:border-slate-600/50 transition-colors"
             >
               <div className="flex gap-4">
@@ -529,7 +523,7 @@ function RecordsList({
                     </p>
                   )}
                   {/* Fleet preview */}
-                  {r.fleetData && <FleetPreview fleetData={r.fleetData} shipNameById={shipNameById} />}
+                  {r.fleetData && <FleetPreview fleetData={r.fleetData} fleetParser={fleetParser} />}
                   {r.imageUrl && (
                     <div className="mt-4 rounded-lg border border-slate-700/50 overflow-hidden">
                       <Image
