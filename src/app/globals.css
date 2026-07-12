@@ -341,21 +341,71 @@ a {
   background: rgb(56 189 248);
 }
 
+.strategy-editor-canvas .strategy-image-node {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.strategy-editor-canvas .strategy-image-node[data-align="left"] { margin-left: 0; }
+.strategy-editor-canvas .strategy-image-node[data-align="right"] { margin-right: 0; }
+
 .strategy-editor-canvas .strategy-editor-image {
   display: block;
   width: auto;
   max-width: 100%;
   max-height: 72vh;
-  margin-inline: auto;
   border: 1px solid rgb(71 85 105 / 0.8);
   border-radius: 0.375rem;
   object-fit: contain;
 }
 
-.strategy-editor-canvas img[data-align="left"] { margin-left: 0; }
-.strategy-editor-canvas img[data-align="right"] { margin-right: 0; }
-.strategy-editor-canvas img[data-upload-state="uploading"] { opacity: 0.55; }
-.strategy-editor-canvas img[data-upload-state="error"] { outline: 2px solid rgb(248 113 113); }
+.strategy-editor-canvas .strategy-image-node[data-display-width]:not([data-display-width="auto"]) .strategy-editor-image { width: 100%; }
+.strategy-editor-canvas .strategy-image-node[data-upload-state="uploading"] .strategy-editor-image { opacity: 0.55; }
+.strategy-editor-canvas .strategy-image-node[data-upload-state="error"] { outline: 2px solid rgb(248 113 113); }
+.strategy-editor-canvas .strategy-image-node.is-selected { outline: 2px solid rgb(56 189 248 / 0.8); }
+
+.strategy-image-fallback {
+  display: flex;
+  min-height: 8rem;
+  min-width: min(24rem, 100%);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px dashed rgb(248 113 113 / 0.58);
+  border-radius: 0.375rem;
+  background: rgb(69 10 10 / 0.22);
+  padding: 1rem;
+  color: rgb(254 202 202);
+  text-align: center;
+}
+
+.strategy-image-progress {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: inline-flex;
+  min-height: 2rem;
+  transform: translate(-50%, -50%);
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgb(71 85 105);
+  border-radius: 0.375rem;
+  background: rgb(2 6 23 / 0.92);
+  padding: 0.35rem 0.65rem;
+  color: rgb(226 232 240);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.strategy-image-node figcaption {
+  margin-top: 0.35rem;
+  color: rgb(148 163 184);
+  font-size: 0.75rem;
+  text-align: center;
+}
 
 .strategy-editor-canvas [data-strategy-columns] {
   display: grid;

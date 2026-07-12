@@ -13,11 +13,16 @@ import { TableKit } from "@tiptap/extension-table";
 import TextAlign from "@tiptap/extension-text-align";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import { Markdown } from "@tiptap/markdown";
+import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
+import { StrategyImageView } from "@/components/strategy/strategy-image-view";
 import { RoutineCardExtension } from "@/components/strategy/routine-card-extension";
 
 export const StrategyImage = Image.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(StrategyImageView);
+  },
   parseMarkdown(token, helpers) {
     const title = typeof token.title === "string" ? token.title : "";
     const assetMatch = title.match(/^strategy-asset:([^;]+)(?:;align=(left|center|right))?(?:;width=(auto|25%|50%|75%|100%))?$/);

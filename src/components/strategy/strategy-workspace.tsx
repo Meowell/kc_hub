@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, Copy, History, LockKeyhole, Pencil, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Archive, ChevronRight, Copy, History, LockKeyhole, Pencil, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RichStrategyEditor } from "@/components/strategy/rich-strategy-editor";
@@ -314,12 +314,32 @@ export function StrategyWorkspace({
                 <span className={activityWritable && map.isOpenForPosts ? "text-emerald-400" : "text-amber-400"}>{activityWritable ? map.isOpenForPosts ? "开放" : "整理中" : "只读"}</span>
               </div>
               <div className="space-y-1">
-                {map.sections.filter((section) => !section.isDeleted).sort((a, b) => a.sortOrder - b.sortOrder).map((section) => (
-                  <button key={section.id} type="button" onClick={() => { setSelectedLegacyPostId(null); setSelectedSectionId(section.id); setSelectedPostId(null); }} className={cn("w-full rounded-md border px-2.5 py-2 text-left text-sm transition-colors", !selectedLegacyPostId && selectedSectionId === section.id ? "border-sky-500/50 bg-sky-950/30 text-sky-100" : "border-transparent text-slate-400 hover:bg-slate-800/70 hover:text-slate-100")}>
-                    <span className="block truncate font-medium">{map.code} {section.name}</span>
-                    <span className="mt-1 block text-[10px] text-slate-600">{section.posts.filter((post) => post.status === "published" && !post.isDeleted).length} 篇攻略</span>
-                  </button>
-                ))}
+                {map.sections.filter((section) => !section.isDeleted).sort((a, b) => a.sortOrder - b.sortOrder).map((section) => {
+                  const guideCount = section.posts.filter((post) => post.status === "published" && !post.isDeleted).length;
+                  const isSelected = !selectedLegacyPostId && selectedSectionId === section.id;
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      data-has-guides={guideCount > 0 ? "true" : "false"}
+                      onClick={() => { setSelectedLegacyPostId(null); setSelectedSectionId(section.id); setSelectedPostId(null); }}
+                      className={cn(
+                        "w-full rounded-md border px-2.5 py-2 text-left text-sm transition-colors",
+                        isSelected
+                          ? "border-sky-500/60 bg-sky-950/35 text-sky-100 shadow-sm"
+                          : guideCount > 0
+                            ? "border-slate-600/80 bg-slate-800/55 text-slate-200 shadow-sm hover:border-sky-500/55 hover:bg-sky-950/30 hover:text-sky-100"
+                            : "border-transparent text-slate-500 hover:bg-slate-800/45 hover:text-slate-300",
+                      )}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate font-medium">{map.code} {section.name}</span>
+                        {guideCount > 0 && <ChevronRight className="h-4 w-4 shrink-0 text-sky-400" aria-hidden="true" />}
+                      </span>
+                      <span className={cn("mt-1 block text-[10px]", guideCount > 0 ? "text-sky-300/80" : "text-slate-600")}>{guideCount} 篇攻略</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}

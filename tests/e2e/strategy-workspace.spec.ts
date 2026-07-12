@@ -136,6 +136,16 @@ test("activity strategy sections enforce publication, ownership and map gates", 
   await memberPage.reload();
   await expect(memberPage.getByText("E1 解密验收：带对潜支援。")).toBeVisible();
 
+  const guideOutline = page.getByRole("navigation", { name: "攻略分块目录" });
+  const authoredSection = guideOutline.locator('button[data-has-guides="true"]').filter({ hasText: "E1 解密1" });
+  const emptySection = guideOutline.locator('button[data-has-guides="false"]').filter({ hasText: "E1 解密2" });
+  await expect(authoredSection).toBeVisible();
+  await expect(emptySection).toBeVisible();
+  await guideOutline.getByRole("button", { name: /E1 P1/ }).click();
+  await expect(authoredSection).toHaveClass(/bg-slate-800\/55/);
+  await expect(emptySection).not.toHaveClass(/bg-slate-800\/55/);
+  await authoredSection.click();
+
   const updatedRoutineName = `更新作业-${suffix}`;
   const routineUpdate = await page.request.patch("/api/routine", {
     data: {

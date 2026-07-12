@@ -56,11 +56,15 @@ function editorContent(post: StrategyPostView) {
     .replace(/\[card:([^\]]+)\]/g, '<div data-routine-card="$1" data-display-mode="compact"></div>');
 }
 
+function isExternalImageSource(source: string) {
+  return /^https?:\/\//i.test(source);
+}
+
 function updateImageBySource(editor: Editor, source: string, attributes: Record<string, unknown>) {
   let found = false;
   const transaction = editor.state.tr;
   editor.state.doc.descendants((node, position) => {
-    if (found || node.type.name !== "image" || node.attrs.src !== source) return;
+    if (node.type.name !== "image" || node.attrs.src !== source) return;
     transaction.setNodeMarkup(position, undefined, { ...node.attrs, ...attributes });
     found = true;
   });
@@ -103,8 +107,12 @@ export function RichStrategyEditor({
 }) {
   const editorRef = useRef<Editor | null>(null);
   const handleFilesRef = useRef<(files: File[]) => void>(() => {});
+  const handleExternalImagesRef = useRef<(editor: Editor) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const failedUploadsRef = useRef(new Map<string, File>());
+  const activeExternalUploadsRef = useRef(new Set<string>());
+  const failedExternalUploadsRef = useRef(new Set<string>());
+  const postIdRef = useRef(post.id);
   const [assetPanel, setAssetPanel] = useState<"images" | "cards" | "markdown">("cards");
   const [routineQuery, setRoutineQuery] = useState("");
   const [routineCards, setRoutineCards] = useState<RoutineCardView[]>([]);
@@ -114,6 +122,8 @@ export function RichStrategyEditor({
   const [routineReplacement, setRoutineReplacement] = useState<((routineCardId: string) => void) | null>(null);
   const [markdownInput, setMarkdownInput] = useState("");
   const [uploadError, setUploadError] = useState("");
+
+  postIdRef.current = post.id;
 
   useEffect(() => () => {
     for (const source of failedUploadsRef.current.keys()) URL.revokeObjectURL(source);
@@ -141,7 +151,11 @@ export function RichStrategyEditor({
     const json = instance.getJSON();
     let hasPendingUploads = false;
     instance.state.doc.descendants((node) => {
-      if (node.type.name === "image" && node.attrs.uploadState !== "ready") hasPendingUploads = true;
+      if (node.type.name !== "image") return;
+      const source = String(node.attrs.src ?? "");
+      if (node.attrs.uploadState !== "ready" || (isExternalImageSource(source) && !node.attrs.assetId)) {
+        hasPendingUploads = true;
+      }
     });
     onChange({
       content: JSON.stringify(json),
@@ -158,9 +172,15 @@ export function RichStrategyEditor({
     immediatelyRender: false,
     onCreate({ editor: instance }) {
       editorRef.current = instance;
+      queueMicrotask(() => {
+        if (!instance.isDestroyed) handleExternalImagesRef.current(instance);
+      });
     },
     onUpdate({ editor: instance }) {
       emitChange(instance);
+      queueMicrotask(() => {
+        if (!instance.isDestroyed) handleExternalImagesRef.current(instance);
+      });
     },
   });
 
@@ -194,6 +214,70 @@ export function RichStrategyEditor({
       setUploadError(error instanceof Error ? error.message : "图片上传失败");
     }
   }, [post.id]);
+
+  const importExternalImage = useCallback(async (source: string) => {
+    const instance = editorRef.current;
+    if (!instance || !editable || activeExternalUploadsRef.current.has(source) || failedExternalUploadsRef.current.has(source)) return;
+    activeExternalUploadsRef.current.add(source);
+    updateImageBySource(instance, source, { uploadState: "uploading" });
+    setUploadError("");
+    const sourcePostId = post.id;
+    try {
+      const response = await fetch("/api/strategy/assets/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ postId: sourcePostId, url: source }),
+      });
+      const payload = await response.json().catch(() => ({})) as AssetResponse;
+      if (!response.ok || !payload.asset) throw new Error(payload.error ?? `外部图片转存失败（HTTP ${response.status}）`);
+      if (postIdRef.current !== sourcePostId || !editorRef.current) {
+        await fetch(`/api/strategy/assets?id=${encodeURIComponent(payload.asset.id)}&orphan=1`, { method: "DELETE" });
+        return;
+      }
+      const attached = updateImageBySource(editorRef.current, source, {
+        src: payload.asset.url,
+        assetId: payload.asset.id,
+        uploadState: "ready",
+      });
+      if (!attached) {
+        await fetch(`/api/strategy/assets?id=${encodeURIComponent(payload.asset.id)}&orphan=1`, { method: "DELETE" });
+      }
+      failedExternalUploadsRef.current.delete(source);
+    } catch (error) {
+      failedExternalUploadsRef.current.add(source);
+      if (postIdRef.current === sourcePostId && editorRef.current) {
+        updateImageBySource(editorRef.current, source, { uploadState: "error" });
+        const isKdocs = /(^|\.)kdocs\.cn$/i.test((() => {
+          try { return new URL(source).hostname; } catch { return ""; }
+        })());
+        setUploadError(isKdocs
+          ? "金山文档的临时图片需要登录，无法作为攻略图片保存。请删除裂图，并在金山文档中单独复制原图后重新粘贴。"
+          : error instanceof Error ? error.message : "外部图片转存失败，请重新粘贴原图。");
+      }
+    } finally {
+      activeExternalUploadsRef.current.delete(source);
+    }
+  }, [editable, post.id]);
+
+  const queueExternalImages = useCallback((instance: Editor) => {
+    const sources = new Set<string>();
+    instance.state.doc.descendants((node) => {
+      const source = node.type.name === "image" ? String(node.attrs.src ?? "") : "";
+      if (source && isExternalImageSource(source) && !node.attrs.assetId) sources.add(source);
+    });
+    for (const source of sources) void importExternalImage(source);
+  }, [importExternalImage]);
+  handleExternalImagesRef.current = queueExternalImages;
+
+  useEffect(() => {
+    activeExternalUploadsRef.current.clear();
+    failedExternalUploadsRef.current.clear();
+    setUploadError("");
+  }, [post.id]);
+
+  useEffect(() => {
+    if (editor && editable) queueExternalImages(editor);
+  }, [editable, editor, queueExternalImages]);
 
   const insertFiles = useCallback((files: File[]) => {
     const instance = editorRef.current;
@@ -280,6 +364,9 @@ export function RichStrategyEditor({
     if (file) {
       editor.chain().focus().updateAttributes("image", { uploadState: "uploading" }).run();
       void uploadOne(file, source);
+    } else if (isExternalImageSource(source)) {
+      failedExternalUploadsRef.current.delete(source);
+      void importExternalImage(source);
     }
   }
 
@@ -296,6 +383,8 @@ export function RichStrategyEditor({
     if (targetPosition >= 0) {
       editor.view.dispatch(editor.state.tr.delete(targetPosition, targetPosition + targetSize));
       failedUploadsRef.current.delete(source);
+      failedExternalUploadsRef.current.delete(source);
+      activeExternalUploadsRef.current.delete(source);
       if (source.startsWith("blob:")) URL.revokeObjectURL(source);
     }
   }
