@@ -38,6 +38,7 @@ test("activity strategy sections enforce publication, ownership and map gates", 
     missionName: `验收作业-${suffix}`,
     airControl: 123,
     note: "实时引用",
+    fleetData: JSON.stringify({ version: 4, f1: { s1: { id: 1, lv: 99, luck: 10, items: {} } } }),
   })).record;
   const replacementRoutine = (await postJson(page.request, "/api/routine", {
     activityId: activity.id,
@@ -119,6 +120,12 @@ test("activity strategy sections enforce publication, ownership and map gates", 
   await routineChoice.click();
   await expect(page.locator(".strategy-routine-card").filter({ hasText: routine.missionName })).toBeVisible();
   await expect(page.getByText("已自动保存")).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "完成编辑" }).click();
+  await expect(page.getByRole("button", { name: "编辑攻略" })).toBeVisible();
+  await expect(page.locator('.strategy-editor-canvas [contenteditable="true"]')).toHaveCount(0);
+  await expect(page.locator('.strategy-routine-node[data-expanded="true"]')).toBeVisible();
+  await page.getByRole("button", { name: "编辑攻略" }).click();
+  await expect(editor).toBeVisible();
 
   const adminMaps = await (await page.request.get(`/api/strategy/maps?activityId=${activity.id}`)).json();
   const draft = adminMaps.maps[0].sections.find((section: { id: string }) => section.id === sections["解密1"].id).posts[0];
@@ -133,8 +140,12 @@ test("activity strategy sections enforce publication, ownership and map gates", 
 
   await page.getByRole("button", { name: "发布" }).click();
   await expect(page.getByText("已发布")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "编辑攻略" })).toBeVisible();
+  await expect(page.locator('.strategy-editor-canvas [contenteditable="true"]')).toHaveCount(0);
   await memberPage.reload();
   await expect(memberPage.getByText("E1 解密验收：带对潜支援。")).toBeVisible();
+  await expect(memberPage.locator('.strategy-routine-node[data-expanded="true"]')).toBeVisible();
+  await expect(memberPage.getByText("（只读）")).toBeVisible({ timeout: 10_000 });
 
   const guideOutline = page.getByRole("navigation", { name: "攻略分块目录" });
   const authoredSection = guideOutline.locator('button[data-has-guides="true"]').filter({ hasText: "E1 解密1" });
@@ -164,6 +175,7 @@ test("activity strategy sections enforce publication, ownership and map gates", 
   await memberPage.reload();
   await expect(memberPage.getByText("作业卡已不存在")).toBeVisible();
   await page.reload();
+  await page.getByRole("button", { name: "编辑攻略" }).click();
   await page.getByRole("button", { name: "选择替换作业卡" }).click();
   const replacementChoice = page.locator(".strategy-assets-panel button").filter({ hasText: replacementRoutine.missionName });
   await expect(replacementChoice).toHaveCount(1);

@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { Node, createAtomBlockMarkdownSpec, mergeAttributes } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { AlertCircle, ChevronDown, ChevronUp, RefreshCw, Trash2 } from "lucide-react";
@@ -16,6 +17,7 @@ const FleetEditor = dynamic(
 function RoutineCardNodeView({ node, editor, updateAttributes, deleteNode }: NodeViewProps) {
   const cardId = String(node.attrs.routineCardId ?? "");
   const displayMode = node.attrs.displayMode === "full" ? "full" : "compact";
+  const expanded = editor.isEditable ? displayMode === "full" : true;
   const [card, setCard] = useState<RoutineCardView | null>(null);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
@@ -58,8 +60,8 @@ function RoutineCardNodeView({ node, editor, updateAttributes, deleteNode }: Nod
   }
 
   return (
-    <NodeViewWrapper className="strategy-routine-node" data-drag-handle>
-      <div className="strategy-routine-card">
+    <NodeViewWrapper className="strategy-routine-node" data-expanded={expanded ? "true" : "false"} data-drag-handle>
+      <div className={`strategy-routine-card${expanded ? " is-expanded" : ""}`}>
         <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-sky-100">{card.seaArea} / {card.missionName}</p>
@@ -74,19 +76,30 @@ function RoutineCardNodeView({ node, editor, updateAttributes, deleteNode }: Nod
                 <button type="button" className="icon-button" title="移除作业卡" onClick={deleteNode}><Trash2 className="h-4 w-4" /></button>
               </>
             )}
-            {!editor.isEditable && displayMode === "compact" && <RefreshCw className="h-3.5 w-3.5 text-emerald-400" aria-label="实时引用" />}
           </div>
         </div>
-        {displayMode === "full" && card.fleetData && (
-          <div className="mt-3 border-t border-slate-700/60 pt-3">
-            <FleetEditor
-              shipData={null}
-              initialFleetData={card.fleetData}
-              readOnly
-              title={`${card.seaArea} / ${card.missionName}`}
-              onBack={() => editor.isEditable && updateAttributes({ displayMode: "compact" })}
-              onFleetChange={() => {}}
-            />
+        {expanded && (card.fleetData || card.imageUrl) && (
+          <div className="mt-3 space-y-3 border-t border-slate-700/60 pt-3">
+            {card.fleetData && (
+              <FleetEditor
+                shipData={null}
+                initialFleetData={card.fleetData}
+                readOnly
+                title={`${card.seaArea} / ${card.missionName}`}
+                onBack={editor.isEditable ? () => updateAttributes({ displayMode: "compact" }) : undefined}
+                onFleetChange={() => {}}
+              />
+            )}
+            {card.imageUrl && (
+              <Image
+                src={card.imageUrl}
+                alt={`${card.seaArea} / ${card.missionName}`}
+                width={1200}
+                height={800}
+                unoptimized
+                className="h-auto max-h-[70vh] w-full rounded-md border border-slate-700/60 bg-slate-950 object-contain"
+              />
+            )}
           </div>
         )}
       </div>

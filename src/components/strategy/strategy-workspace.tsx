@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ChevronRight, Copy, History, LockKeyhole, Pencil, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Archive, Check, ChevronRight, Copy, History, LockKeyhole, Pencil, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RichStrategyEditor } from "@/components/strategy/rich-strategy-editor";
@@ -24,15 +24,16 @@ import { cn } from "@/lib/utils";
 type SavePayload = { content: string; plainText: string; hasPendingUploads: boolean };
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
 
-function StrategyPostDocument({ post: initialPost, editable, activityId, onDeleted }: {
+function StrategyPostDocument({ post: initialPost, canEdit, activityId, onDeleted }: {
   post: StrategyPostView;
-  editable: boolean;
+  canEdit: boolean;
   activityId: string;
   onDeleted: () => void;
 }) {
   const router = useRouter();
   const [post, setPost] = useState(initialPost);
   const [payload, setPayload] = useState<SavePayload>({ content: initialPost.content, plainText: initialPost.plainText, hasPendingUploads: false });
+  const [isEditing, setIsEditing] = useState(canEdit && initialPost.status === "draft");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -45,10 +46,11 @@ function StrategyPostDocument({ post: initialPost, editable, activityId, onDelet
     setPayload({ content: initialPost.content, plainText: initialPost.plainText, hasPendingUploads: false });
     lastSavedContentRef.current = initialPost.content;
     setSaveState("idle");
-  }, [initialPost]);
+    setIsEditing(canEdit && initialPost.status === "draft");
+  }, [canEdit, initialPost]);
 
   const save = useCallback(async (nextStatus?: "published") => {
-    if (!editable || savingRef.current || saveState === "conflict") return false;
+    if (!canEdit || savingRef.current || saveState === "conflict") return false;
     if (payload.hasPendingUploads) {
       setSaveError("仍有图片正在上传或上传失败，请处理后再离开。");
       return false;
@@ -99,25 +101,35 @@ function StrategyPostDocument({ post: initialPost, editable, activityId, onDelet
     } finally {
       savingRef.current = false;
     }
-  }, [activityId, editable, payload, post, router, saveState]);
+  }, [activityId, canEdit, payload, post, router, saveState]);
 
   useDirtyForm(
-    editable && (payload.hasPendingUploads || payload.content !== lastSavedContentRef.current),
+    isEditing && (payload.hasPendingUploads || payload.content !== lastSavedContentRef.current),
     () => save(),
   );
 
   useEffect(() => {
-    if (!editable || payload.hasPendingUploads || payload.content === lastSavedContentRef.current || saveState === "conflict") return;
+    if (!isEditing || payload.hasPendingUploads || payload.content === lastSavedContentRef.current || saveState === "conflict") return;
     const timer = window.setTimeout(() => void save(), 1200);
     return () => window.clearTimeout(timer);
-  }, [editable, payload.content, payload.hasPendingUploads, save, saveState]);
+  }, [isEditing, payload.content, payload.hasPendingUploads, save, saveState]);
 
   async function publish() {
     if (payload.hasPendingUploads) {
       setSaveError("仍有图片正在上传或上传失败，处理后才能发布。");
       return;
     }
-    await save("published");
+    if (await save("published")) setIsEditing(false);
+  }
+
+  async function finishEditing() {
+    if (saveState === "saving" || saveState === "conflict") return;
+    if (payload.hasPendingUploads) {
+      setSaveError("仍有图片正在上传或上传失败，请处理后再完成编辑。");
+      return;
+    }
+    if (payload.content !== lastSavedContentRef.current && !(await save())) return;
+    setIsEditing(false);
   }
 
   async function copyLocalDraft() {
@@ -167,11 +179,13 @@ function StrategyPostDocument({ post: initialPost, editable, activityId, onDelet
     <div className="min-w-0">
       <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-slate-700/60 pb-3">
         <span className={cn("status-badge", post.status === "published" ? "text-emerald-300" : "text-amber-300")}>{post.status === "published" ? "已发布" : "草稿"}</span>
-        {editable && <span className="text-xs text-slate-500">{payload.hasPendingUploads ? "处理图片后保存" : saveState === "saving" ? "保存中…" : saveState === "saved" ? "已自动保存" : saveState === "error" ? "保存失败" : saveState === "conflict" ? "版本冲突" : "自动保存"}</span>}
+        {isEditing && <span className="text-xs text-slate-500">{payload.hasPendingUploads ? "处理图片后保存" : saveState === "saving" ? "保存中…" : saveState === "saved" ? "已自动保存" : saveState === "error" ? "保存失败" : saveState === "conflict" ? "版本冲突" : "自动保存"}</span>}
         <div className="ml-auto flex flex-wrap gap-2">
-          {editable && post.status === "draft" && <Button type="button" disabled={saveState === "saving" || payload.hasPendingUploads} onClick={() => void publish()}><Send className="h-4 w-4" /> 发布</Button>}
-          {editable && <Button type="button" variant="ghost" title="历史版本" disabled={payload.hasPendingUploads} onClick={() => void loadHistory()}><History className="h-4 w-4" /></Button>}
-          {editable && <Button type="button" variant="ghost" title="删除攻略" disabled={payload.hasPendingUploads} onClick={() => void remove()}><Trash2 className="h-4 w-4" /></Button>}
+          {canEdit && !isEditing && <Button type="button" variant="secondary" onClick={() => { setSaveError(""); setSaveState("idle"); setIsEditing(true); }}><Pencil className="h-4 w-4" /> 编辑攻略</Button>}
+          {isEditing && <Button type="button" variant={post.status === "draft" ? "secondary" : "primary"} disabled={saveState === "saving" || saveState === "conflict" || payload.hasPendingUploads} onClick={() => void finishEditing()}><Check className="h-4 w-4" /> 完成编辑</Button>}
+          {canEdit && post.status === "draft" && <Button type="button" disabled={saveState === "saving" || payload.hasPendingUploads} onClick={() => void publish()}><Send className="h-4 w-4" /> 发布</Button>}
+          {canEdit && <Button type="button" variant="ghost" title="历史版本" disabled={payload.hasPendingUploads} onClick={() => void loadHistory()}><History className="h-4 w-4" /></Button>}
+          {canEdit && <Button type="button" variant="ghost" title="删除攻略" disabled={payload.hasPendingUploads} onClick={() => void remove()}><Trash2 className="h-4 w-4" /></Button>}
         </div>
       </div>
       {saveError && (
@@ -180,7 +194,7 @@ function StrategyPostDocument({ post: initialPost, editable, activityId, onDelet
           {saveState === "conflict" && <div className="flex shrink-0 gap-2"><Button type="button" variant="secondary" onClick={() => void copyLocalDraft()}><Copy className="h-4 w-4" /> 复制本地副本</Button><Button type="button" variant="secondary" onClick={() => window.location.reload()}><RefreshCw className="h-4 w-4" /> 重新载入</Button></div>}
         </div>
       )}
-      <RichStrategyEditor post={post} editable={editable} activityId={activityId} onChange={editable ? setPayload : undefined} />
+      <RichStrategyEditor key={`${post.id}:${isEditing ? "edit" : "view"}`} post={post} editable={isEditing} activityId={activityId} onChange={isEditing ? setPayload : undefined} />
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>历史版本</DialogTitle><DialogDescription>恢复前会自动保存当前版本。</DialogDescription></DialogHeader>
@@ -367,7 +381,7 @@ export function StrategyWorkspace({
               <p className="mt-1 text-xs text-slate-500">{selectedLegacyPost.user.name} · 管理员可将此攻略移入选定的公共分块</p>
             </header>
             <div className="p-3 sm:p-5">
-              <StrategyPostDocument post={selectedLegacyPost} editable={false} activityId={activityId} onDeleted={() => setSelectedLegacyPostId(null)} />
+              <StrategyPostDocument post={selectedLegacyPost} canEdit={false} activityId={activityId} onDeleted={() => setSelectedLegacyPostId(null)} />
             </div>
           </>
         ) : selectedSection && selectedMap ? (
@@ -406,7 +420,7 @@ export function StrategyWorkspace({
                 <StrategyPostDocument
                   key={selectedPost.id}
                   post={selectedPost}
-                  editable={selectedMapWritable && selectedPost.userId === currentUserId}
+                  canEdit={selectedMapWritable && selectedPost.userId === currentUserId}
                   activityId={activityId}
                   onDeleted={() => setSelectedPostId(null)}
                 />
