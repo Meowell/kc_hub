@@ -1,0 +1,10 @@
+name: Frontend emoji cleanup staging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Cleanup patch staging"
