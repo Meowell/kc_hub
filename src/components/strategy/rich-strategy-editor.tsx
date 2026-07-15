@@ -170,6 +170,11 @@ export function RichStrategyEditor({
     contentType: post.contentFormat === "markdown" ? "markdown" : "json",
     editable,
     immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        "aria-label": editable ? "攻略正文编辑器" : "攻略正文",
+      },
+    },
     onCreate({ editor: instance }) {
       editorRef.current = instance;
       queueMicrotask(() => {

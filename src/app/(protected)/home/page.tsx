@@ -45,35 +45,41 @@ export default async function HomePage({
       },
       orderBy: { name: "asc" },
     }),
-    prisma.lockTag.findMany({
-      where: { activityId: scope.activityId, isActive: true },
-      select: { id: true, name: true },
-      orderBy: { sortOrder: "asc" },
-    }),
-    prisma.lockPlan.findMany({
-      where: { tag: { activityId: scope.activityId, isActive: true } },
-      select: {
-        id: true,
-        userId: true,
-        tagId: true,
-        assignedData: true,
-        updatedAt: true,
-        user: { select: { name: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
+    scope.isDaily
+      ? Promise.resolve([])
+      : prisma.lockTag.findMany({
+        where: { activityId: scope.activityId, isActive: true },
+        select: { id: true, name: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+    scope.isDaily
+      ? Promise.resolve([])
+      : prisma.lockPlan.findMany({
+        where: { tag: { activityId: scope.activityId, isActive: true } },
+        select: {
+          id: true,
+          userId: true,
+          tagId: true,
+          assignedData: true,
+          updatedAt: true,
+          user: { select: { name: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      }),
     prisma.routineRecord.findMany({
       where: { activityId: scope.activityId },
       take: 5,
       orderBy: { createdAt: "desc" },
       include: { user: { select: { name: true } } },
     }),
-    prisma.strategyPost.findMany({
-      where: { activityId: scope.activityId },
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { user: { select: { name: true } } },
-    }),
+    scope.isDaily
+      ? Promise.resolve([])
+      : prisma.strategyPost.findMany({
+        where: { activityId: scope.activityId },
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: { user: { select: { name: true } } },
+      }),
   ]);
 
   const syncedMembers = members.filter((member) => member.shipData?.trim());
@@ -104,17 +110,21 @@ export default async function HomePage({
               作战大厅
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              当前范围：{scope.label}。集中查看舰队数据准备、锁船矩阵、作业卡与攻略档案的最新状态。
+              {scope.isDaily
+                ? "当前范围：日常。集中查看舰队数据准备与日常作业卡。"
+                : `当前范围：${scope.label}。集中查看舰队数据准备、锁船矩阵、作业卡与攻略档案的最新状态。`}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link
-              href={scopedPath("/lock-plan", scope.activityId)}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-primary/60 bg-primary/18 px-4 py-2 text-sm font-semibold text-sky-100 transition-colors hover:border-primary hover:bg-primary/26"
-            >
-              <LockKeyhole className="h-4 w-4" />
-              进入锁船矩阵
-            </Link>
+            {!scope.isDaily && (
+              <Link
+                href={scopedPath("/lock-plan", scope.activityId)}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-primary/60 bg-primary/18 px-4 py-2 text-sm font-semibold text-sky-100 transition-colors hover:border-primary hover:bg-primary/26"
+              >
+                <LockKeyhole className="h-4 w-4" />
+                进入锁船矩阵
+              </Link>
+            )}
             <Link
               href="/dashboard"
               className="inline-flex items-center justify-center gap-2 rounded-md border border-border-base bg-transparent px-4 py-2 text-sm font-semibold text-slate-300 transition-colors hover:border-primary/60 hover:text-sky-100"
@@ -126,7 +136,7 @@ export default async function HomePage({
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className={`grid gap-4 ${scope.isDaily ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
         <Panel eyebrow="DATA SYNC" title="成员数据状态" status={<StatusBadge variant={missingMembers.length ? "warning" : "success"}>{missingMembers.length ? "CHECK" : "READY"}</StatusBadge>}>
           <div className="flex items-end justify-between">
             <div>
@@ -146,34 +156,36 @@ export default async function HomePage({
           </div>
         </Panel>
 
-        <Panel
-          eyebrow="LOCK MATRIX"
-          title="锁船状态"
-          status={<StatusBadge variant={lockSummary.conflictCount ? "danger" : tags.length ? "default" : "muted"}>{lockSummary.conflictCount ? "CONFLICT" : tags.length ? "ACTIVE" : "EMPTY"}</StatusBadge>}
-        >
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <p className="text-3xl font-bold tabular-nums text-white">{tags.length}</p>
-              <p className="mt-1 text-sm text-slate-400">标签数</p>
+        {!scope.isDaily && (
+          <Panel
+            eyebrow="LOCK MATRIX"
+            title="锁船状态"
+            status={<StatusBadge variant={lockSummary.conflictCount ? "danger" : tags.length ? "default" : "muted"}>{lockSummary.conflictCount ? "CONFLICT" : tags.length ? "ACTIVE" : "EMPTY"}</StatusBadge>}
+          >
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-3xl font-bold tabular-nums text-white">{tags.length}</p>
+                <p className="mt-1 text-sm text-slate-400">标签数</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold tabular-nums text-white">{lockSummary.assignedShipCount}</p>
+                <p className="mt-1 text-sm text-slate-400">已分配舰船</p>
+              </div>
+              <div>
+                <p className={lockSummary.conflictCount ? "text-3xl font-bold tabular-nums text-red-200" : "text-3xl font-bold tabular-nums text-emerald-200"}>{lockSummary.conflictCount}</p>
+                <p className="mt-1 text-sm text-slate-400">冲突</p>
+              </div>
             </div>
-            <div>
-              <p className="text-3xl font-bold tabular-nums text-white">{lockSummary.assignedShipCount}</p>
-              <p className="mt-1 text-sm text-slate-400">已分配舰船</p>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="terminal-label text-xs text-slate-500">
+                LAST SYNC / {formatDateTime(latestLockUpdate)}{latestLockUser ? ` / ${latestLockUser}` : ""}
+              </p>
+              <Link href={scopedPath("/lock-plan", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">
+                {lockSummary.conflictCount ? "进入冲突筛选" : "进入矩阵"}
+              </Link>
             </div>
-            <div>
-              <p className={lockSummary.conflictCount ? "text-3xl font-bold tabular-nums text-red-200" : "text-3xl font-bold tabular-nums text-emerald-200"}>{lockSummary.conflictCount}</p>
-              <p className="mt-1 text-sm text-slate-400">冲突</p>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <p className="terminal-label text-xs text-slate-500">
-              LAST SYNC / {formatDateTime(latestLockUpdate)}{latestLockUser ? ` / ${latestLockUser}` : ""}
-            </p>
-            <Link href={scopedPath("/lock-plan", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">
-              {lockSummary.conflictCount ? "进入冲突筛选" : "进入矩阵"}
-            </Link>
-          </div>
-        </Panel>
+          </Panel>
+        )}
 
         <Panel eyebrow="ADMIRAL STATUS" title="个人状态" status={<StatusBadge variant="muted">{getRoleLabel(user.role)}</StatusBadge>}>
           <div className="flex items-center gap-3">
@@ -196,7 +208,7 @@ export default async function HomePage({
         </Panel>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={`grid gap-4 ${scope.isDaily ? "" : "lg:grid-cols-2"}`}>
         <Panel eyebrow="SORTIE BOARD" title="最近作业卡" actions={<Link href={scopedPath("/routine", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">查看全部</Link>}>
           {recentRoutine.length === 0 ? (
             <EmptyFeed icon={<ClipboardList className="h-5 w-5" />} title="尚无作业卡" text="建立作业卡后，最近阵容记录会出现在这里。" />
@@ -219,27 +231,29 @@ export default async function HomePage({
           )}
         </Panel>
 
-        <Panel eyebrow="TACTICAL NOTES" title="最近攻略" actions={<Link href={scopedPath("/strategy", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">查看全部</Link>}>
-          {recentStrategy.length === 0 ? (
-            <EmptyFeed icon={<FileText className="h-5 w-5" />} title="尚无攻略档案" text="发布攻略后，最近战术档案会出现在这里。" />
-          ) : (
-            <div className="space-y-2">
-              {recentStrategy.map((post) => (
-                <Link
-                  key={post.id}
-                  href={scopedPath("/strategy", scope.activityId)}
-                  className="flex items-center justify-between gap-3 rounded-sm border border-border-base/60 bg-slate-950/20 px-3 py-2 text-sm transition-colors hover:border-primary/45"
-                >
-                  <span className="min-w-0">
-                    <span className="terminal-label mr-2 text-xs text-primary">{post.phaseName}</span>
-                    <span className="text-slate-100">{post.title}</span>
-                  </span>
-                  <span className="shrink-0 text-xs text-slate-500">{post.user.name}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Panel>
+        {!scope.isDaily && (
+          <Panel eyebrow="TACTICAL NOTES" title="最近攻略" actions={<Link href={scopedPath("/strategy", scope.activityId)} className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-primary hover:bg-primary/10 hover:text-sky-100 sm:min-h-6">查看全部</Link>}>
+            {recentStrategy.length === 0 ? (
+              <EmptyFeed icon={<FileText className="h-5 w-5" />} title="尚无攻略档案" text="发布攻略后，最近战术档案会出现在这里。" />
+            ) : (
+              <div className="space-y-2">
+                {recentStrategy.map((post) => (
+                  <Link
+                    key={post.id}
+                    href={scopedPath("/strategy", scope.activityId)}
+                    className="flex items-center justify-between gap-3 rounded-sm border border-border-base/60 bg-slate-950/20 px-3 py-2 text-sm transition-colors hover:border-primary/45"
+                  >
+                    <span className="min-w-0">
+                      <span className="terminal-label mr-2 text-xs text-primary">{post.phaseName}</span>
+                      <span className="text-slate-100">{post.title}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-slate-500">{post.user.name}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Panel>
+        )}
       </div>
 
       {missingMembers.length > 0 && (

@@ -92,6 +92,41 @@ test("activity scope survives navigation and lock plan has mobile collaboration 
   }
 });
 
+test("strategy is activity-only while routine keeps the daily scope", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "Scope regression only needs one desktop viewport.");
+
+  const dailyStrategy = await page.request.post("/api/strategy", {
+    data: {
+      activityId: null,
+      phaseName: "日常",
+      title: "不应创建的日常攻略",
+      content: "日常攻略内容",
+      contentFormat: "markdown",
+      status: "published",
+    },
+  });
+  expect(dailyStrategy.status()).toBe(400);
+  await expect(dailyStrategy.json()).resolves.toMatchObject({ error: "攻略需要选择活动，日常仅支持作业卡" });
+
+  const activityResponse = await page.request.post("/api/activities", {
+    data: { name: `攻略范围验收-${Date.now()}` },
+  });
+  expect(activityResponse.ok()).toBe(true);
+
+  await page.goto("/strategy");
+  await expect(page).toHaveURL(/\/strategy\?activityId=/);
+  await expect(page.getByRole("link", { name: "日常", exact: true })).toHaveCount(0);
+
+  await page.goto("/routine");
+  await expect(page.getByRole("link", { name: "日常", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "日常作业卡" })).toBeVisible();
+
+  await page.goto("/home");
+  await expect(page.getByText("最近作业卡", { exact: true })).toBeVisible();
+  await expect(page.getByText("最近攻略", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("锁船状态", { exact: true })).toHaveCount(0);
+});
+
 test("ship picker keeps focus while an IME composition updates search results", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-1440", "IME regression only needs one Chromium viewport.");
 
@@ -213,11 +248,41 @@ test("routine cards preserve strike and combined fleet layouts", async ({ page }
 });
 
 test("dirty strategy draft is guarded by an accessible focus-trapped dialog", async ({ page }, testInfo) => {
-  await page.goto("/strategy");
-  await page.getByRole("button", { name: "新建攻略" }).click();
+  const suffix = `${testInfo.project.name}-${Date.now()}`;
+  const activityResponse = await page.request.post("/api/activities", {
+    data: { name: `未保存攻略-${suffix}` },
+  });
+  const activity = await activityResponse.json() as { activity: { id: string } };
+  expect(activityResponse.ok()).toBe(true);
+  const mapResponse = await page.request.post("/api/strategy/maps", {
+    data: { activityId: activity.activity.id, code: "E1" },
+  });
+  const strategyMap = await mapResponse.json() as { map: { id: string } };
+  expect(mapResponse.ok()).toBe(true);
+  const sectionResponse = await page.request.post("/api/strategy/sections", {
+    data: { strategyMapId: strategyMap.map.id, name: "P1", lockTagIds: [] },
+  });
+  expect(sectionResponse.ok()).toBe(true);
+  const openResponse = await page.request.patch("/api/strategy/maps", {
+    data: {
+      id: strategyMap.map.id,
+      activityId: activity.activity.id,
+      code: "E1",
+      sortOrder: 0,
+      isOpenForPosts: true,
+      isDeleted: false,
+    },
+  });
+  expect(openResponse.ok()).toBe(true);
+
+  await page.goto(`/strategy?activityId=${activity.activity.id}`);
+  await page.getByRole("button", { name: "写我的攻略" }).click();
+  const editor = page.locator('.strategy-editor-canvas [contenteditable="true"]');
+  await editor.click();
+  await page.keyboard.insertText("尚未保存的活动攻略");
   const homeLink = ["mobile-390", "tablet-768"].includes(testInfo.project.name)
-    ? page.locator('nav[aria-label="移动端主导航"] a[href="/home"]')
-    : page.locator('header nav a[href="/home"]');
+    ? page.locator('nav[aria-label="移动端主导航"] a[href^="/home"]')
+    : page.locator('header nav a[href^="/home"]');
   await homeLink.click();
 
   const dialog = page.getByRole("alertdialog", { name: "切换前处理未保存内容" });

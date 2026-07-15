@@ -27,6 +27,10 @@ const postInclude = {
   },
 };
 
+function strategyRequiresActivityResponse() {
+  return NextResponse.json({ error: "攻略需要选择活动，日常仅支持作业卡" }, { status: 400 });
+}
+
 export async function GET(request: Request) {
   const user = await getApiUser();
   if (!user) return unauthorizedApiResponse();
@@ -36,11 +40,13 @@ export async function GET(request: Request) {
 
   if (id) {
     const post = await prisma.strategyPost.findUnique({ where: { id }, include: postInclude });
-    if (!post || post.isDeleted || (post.status === STRATEGY_DRAFT && post.userId !== user.id)) {
+    if (!post || !post.activityId || post.isDeleted || (post.status === STRATEGY_DRAFT && post.userId !== user.id)) {
       return NextResponse.json({ error: "攻略不存在" }, { status: 404 });
     }
     return NextResponse.json({ post });
   }
+
+  if (!activityId) return strategyRequiresActivityResponse();
 
   const posts = await prisma.strategyPost.findMany({
     where: {
@@ -141,10 +147,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "旧版攻略需要阶段和标题" }, { status: 400 });
   }
   const activityId = normalizeActivityId(parsed.data.activityId);
+  if (!activityId) return strategyRequiresActivityResponse();
   const activity = activityId
     ? await prisma.activity.findUnique({ where: { id: activityId }, select: { status: true, isActive: true } })
     : null;
-  if (activityId && !activity) return NextResponse.json({ error: "活动不存在" }, { status: 404 });
+  if (!activity) return NextResponse.json({ error: "活动不存在" }, { status: 404 });
   if (!isActivityWritable(activity)) return NextResponse.json({ error: "活动已归档，攻略只读" }, { status: 403 });
 
   const post = await prisma.strategyPost.create({
@@ -187,6 +194,7 @@ export async function PATCH(request: Request) {
     },
   });
   if (!existing || existing.isDeleted) return NextResponse.json({ error: "攻略不存在" }, { status: 404 });
+  if (!existing.activityId) return strategyRequiresActivityResponse();
   if (!canEditStrategyPost(user, existing.userId, existing.sectionId)) return NextResponse.json({ error: "没有编辑权限" }, { status: 403 });
   if (!isActivityWritable(existing.activity)) return NextResponse.json({ error: "活动已归档，攻略只读" }, { status: 403 });
   if (existing.section && (existing.section.isDeleted || existing.section.strategyMap.isDeleted || !existing.section.strategyMap.isOpenForPosts)) {
@@ -268,6 +276,7 @@ export async function DELETE(request: Request) {
     },
   });
   if (!existing || existing.isDeleted) return NextResponse.json({ error: "攻略不存在" }, { status: 404 });
+  if (!existing.activityId) return strategyRequiresActivityResponse();
   if (!canEditStrategyPost(user, existing.userId, existing.sectionId)) return NextResponse.json({ error: "没有删除权限" }, { status: 403 });
   if (!isActivityWritable(existing.activity)) return NextResponse.json({ error: "活动已归档，攻略只读" }, { status: 403 });
   if (existing.section && (existing.section.isDeleted || existing.section.strategyMap.isDeleted || !existing.section.strategyMap.isOpenForPosts)) {
