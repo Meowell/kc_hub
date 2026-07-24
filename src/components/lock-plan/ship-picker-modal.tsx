@@ -23,7 +23,7 @@ import {
   getLockTagColorStyle,
   isCustomLockTagColor,
 } from "@/lib/lock-tag-colors";
-import { shipTypeLabels } from "@/lib/lock-plan-helpers";
+import { getAvailableShipTypeOptions } from "@/lib/master-data";
 import { type ShipStock } from "@/lib/noro6";
 import { cn } from "@/lib/utils";
 
@@ -75,6 +75,12 @@ export function ShipPickerModal({
     match: ShipBonusMatch;
   } | null>(null);
   const deferredQuery = useDeferredValue(query);
+  const shipTypeOptions = useMemo(
+    () => getAvailableShipTypeOptions(
+      ships.map((ship) => Number(getShipTypeId(ship.shipId))),
+    ),
+    [getShipTypeId, ships],
+  );
 
   const filteredShips = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase();
@@ -145,9 +151,9 @@ export function ShipPickerModal({
             className="sm:w-40 bg-white text-slate-800 border-slate-300"
           >
             <option value="all">全部舰种</option>
-            {Object.entries(shipTypeLabels).map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
+            {shipTypeOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
               </option>
             ))}
           </Select>

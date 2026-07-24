@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { execFile } from "child_process";
 
 import { getApiUser, unauthorizedApiResponse } from "@/lib/auth";
-import { writeRuntimeMasterData } from "@/lib/master-data-server";
+import { getMasterDataManifest, writeRuntimeMasterData } from "@/lib/master-data-server";
 import type { ShipHpEntry, Start2Data } from "@/lib/master-data";
 
 const MASTER_SOURCES = [
@@ -203,6 +203,15 @@ export async function POST() {
     results.push("START2 运行时数据已更新");
   } catch (err) {
     errors.push(`START2: ${err instanceof Error ? err.message : "失败"}`);
+  }
+
+  if (results.length > 0) {
+    try {
+      await getMasterDataManifest();
+      results.push("版本化主数据文件已生成");
+    } catch (err) {
+      errors.push(`版本化主数据: ${err instanceof Error ? err.message : "生成失败"}`);
+    }
   }
 
   if (errors.length > 0 && results.length === 0) {

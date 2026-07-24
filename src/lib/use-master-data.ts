@@ -8,13 +8,31 @@ import { emptyMasterData, type MasterData } from "@/lib/master-data";
 let cachedMasterData: MasterData | null = null;
 let pendingMasterData: Promise<MasterData> | null = null;
 
+type MasterDataManifest = {
+  version: string;
+  url: string;
+};
+
 async function fetchMasterData(force = false) {
-  const url = force ? `/api/master-data?ts=${Date.now()}` : "/api/master-data";
-  const response = await fetch(url, { cache: force ? "no-store" : "default" });
-  if (!response.ok) {
-    throw new Error(`master data request failed: ${response.status}`);
+  const manifestUrl = force
+    ? `/api/master-data/manifest?ts=${Date.now()}`
+    : "/api/master-data/manifest";
+  const manifestResponse = await fetch(manifestUrl, {
+    cache: force ? "no-store" : "no-cache",
+  });
+  if (!manifestResponse.ok) {
+    throw new Error(`master data manifest request failed: ${manifestResponse.status}`);
   }
-  return response.json() as Promise<MasterData>;
+  const manifest = await manifestResponse.json() as MasterDataManifest;
+  if (!manifest.version || !manifest.url) {
+    throw new Error("master data manifest is invalid");
+  }
+
+  const assetResponse = await fetch(manifest.url, { cache: "force-cache" });
+  if (!assetResponse.ok) {
+    throw new Error(`master data asset request failed: ${assetResponse.status}`);
+  }
+  return assetResponse.json() as Promise<MasterData>;
 }
 
 function loadMasterData(force = false) {

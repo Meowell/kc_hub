@@ -91,6 +91,16 @@ export const shipTypeLabels: Record<number, string> = {
   22: "AO",
 };
 
+export function getAvailableShipTypeOptions(shipTypeIds: Iterable<number>) {
+  return [...new Set(shipTypeIds)]
+    .filter((id) => id > 0)
+    .sort((a, b) => a - b)
+    .map((id) => ({
+      id,
+      name: shipTypeLabels[id] ?? `Type ${id}`,
+    }));
+}
+
 function getRemodelRoot(shipId: number, remodelFrom: Map<number, Set<number>>): number {
   const seen = new Set<number>();
   const roots: number[] = [];

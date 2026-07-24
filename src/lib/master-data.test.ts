@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { createMasterLookup, shipTypeLabels, type MasterData } from "./master-data";
+import {
+  createMasterLookup,
+  getAvailableShipTypeOptions,
+  shipTypeLabels,
+  type MasterData,
+} from "./master-data";
 
 const kasumiForms: MasterData["start2"]["api_mst_ship"] = [
   { api_id: 49, api_name: "霞", api_stype: 2, api_aftershipid: "253" },
@@ -30,6 +35,16 @@ describe("ship type labels", () => {
     assert.equal(shipTypeLabels[18], "CVB");
     assert.equal(shipTypeLabels[19], "AR");
     assert.equal(shipTypeLabels[20], "AS");
+  });
+
+  it("only exposes ship type filters that exist in the current fleet", () => {
+    assert.deepEqual(
+      getAvailableShipTypeOptions([22, 2, 22]),
+      [
+        { id: 2, name: "DD" },
+        { id: 22, name: "AO" },
+      ],
+    );
   });
 
   it("uses authoritative original ids for every remodel form", () => {
