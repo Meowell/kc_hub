@@ -210,7 +210,7 @@ export function ShipPickerModal({
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-start justify-between gap-2">
                       <div className={cn("flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px]", hasCustomLockColor ? "text-inherit" : "text-slate-950")}>
-                        <span className={cn("font-semibold", levelColor(ship.level))}>Lv{ship.level}</span>
+                        <span className={cn("font-semibold", hasCustomLockColor ? "text-inherit" : levelColor(ship.level))}>Lv{ship.level}</span>
                         <span className={hasCustomLockColor ? "text-inherit" : "text-slate-950"}>{getShipType(ship.shipId)}</span>
                         <span className={hasCustomLockColor ? "text-inherit" : "text-slate-950"}>ID {ship.shipId}</span>
                       </div>
@@ -224,7 +224,9 @@ export function ShipPickerModal({
                           className={cn(
                             "flex max-w-[58%] shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold",
                             bonusMatch.hasNamedBonus
-                              ? "bg-red-500/10 text-red-700 ring-1 ring-red-500/20"
+                              ? hasCustomLockColor
+                                ? "bg-white/70 text-slate-950 ring-1 ring-black/10"
+                                : "bg-red-500/10 text-red-700 ring-1 ring-red-500/20"
                               : "bg-slate-300 text-slate-950",
                           )}
                           title="查看舰船倍卡"
@@ -238,12 +240,12 @@ export function ShipPickerModal({
                     <p className={cn(
                       "truncate text-sm font-medium mt-0.5",
                       hasCustomLockColor ? "text-inherit" : "text-slate-950",
-                      bonusMatch.hasNamedBonus && "font-bold text-red-600",
+                      bonusMatch.hasNamedBonus && (hasCustomLockColor ? "font-bold" : "font-bold text-red-600"),
                     )}>
                       {shipName}
                     </p>
                     {/* Stats row */}
-                    <div className={cn("mt-2 flex gap-2 text-[11px]", lock && "pr-24", hasCustomLockColor ? "text-inherit opacity-80" : "text-slate-950")}>
+                    <div className={cn("mt-2 flex gap-2 text-[11px]", lock && "pr-24", hasCustomLockColor ? "text-inherit opacity-90" : "text-slate-950")}>
                       <span>火{ship.firepower}</span>
                       <span>雷{ship.torpedo}</span>
                       <span>空{ship.antiAir}</span>

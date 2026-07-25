@@ -223,7 +223,7 @@ test("copies another user's single lock tag with transient missing-ship hints", 
       data: {
         activityId: activity.activity.id,
         name: tagName,
-        colorClass: "#73c7d4",
+        colorClass: "#b3383b",
       },
     });
     const tag = await tagResponse.json() as { tag: { id: string } };
@@ -322,7 +322,11 @@ test("copies another user's single lock tag with transient missing-ship hints", 
     const desktopGhost = targetRow.getByRole("button", { name: /缺少 .+，点击选择替代舰船/ });
     await expect(desktopGhost).toBeVisible();
     await desktopGhost.click();
-    await expect(page.getByRole("dialog", { name: "选择舰娘" })).toBeVisible();
+    const picker = page.getByRole("dialog", { name: "选择舰娘" });
+    await expect(picker).toBeVisible();
+    const lockedShipCard = picker.locator('[role="button"]').filter({ hasText: "ID 102" }).first();
+    await expect(lockedShipCard).toHaveCSS("background-color", "rgb(197, 104, 106)");
+    await expect(lockedShipCard).toHaveCSS("color", "rgb(15, 23, 42)");
     await page.keyboard.press("Escape");
 
     const copiedTargetPlan = await getTargetPlan();
