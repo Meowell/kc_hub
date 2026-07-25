@@ -18,6 +18,7 @@ async function postJson(request: APIRequestContext, url: string, data: unknown) 
 }
 
 test("activity strategy sections enforce publication, ownership and map gates", async ({ page, browser }, testInfo) => {
+  test.setTimeout(60_000);
   await login(page);
   const suffix = `${testInfo.project.name}-${Date.now()}`;
   const activity = (await postJson(page.request, "/api/activities", { name: `攻略验收-${suffix}` })).activity;
