@@ -95,6 +95,48 @@ test("activity strategy sections enforce publication, ownership and map gates", 
   await expect(editor).toBeVisible();
   await editor.click();
   await page.keyboard.insertText("E1 解密验收：带对潜支援。");
+  await editor.evaluate((element) => {
+    const text = [...element.childNodes]
+      .flatMap((node) => [...(node.childNodes.length ? node.childNodes : [node])])
+      .find((node) => node.textContent?.includes("带对潜支援"));
+    if (!text?.textContent) throw new Error("找不到删除线测试文本");
+    const start = text.textContent.indexOf("带对潜支援");
+    const range = document.createRange();
+    range.setStart(text, start);
+    range.setEnd(text, start + "带对潜支援".length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
+  await page.getByRole("button", { name: "删除线" }).click();
+  await expect(editor.locator("s").filter({ hasText: "带对潜支援" })).toBeVisible();
+
+  await editor.focus();
+  await page.keyboard.press("Control+End");
+  await editor.evaluate((element) => {
+    const transfer = new DataTransfer();
+    transfer.setData(
+      "text/html",
+      "<p>粘贴空行起点</p><p><br></p><div>&nbsp;</div><p><span>&#8203;</span></p><p>粘贴空行终点</p>",
+    );
+    transfer.setData("text/plain", "粘贴空行起点\n\n\n\n粘贴空行终点");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }));
+  });
+  await expect(editor.getByText("粘贴空行起点")).toBeVisible();
+  await expect(editor.getByText("粘贴空行终点")).toBeVisible();
+  const pastedGap = await editor.evaluate((element) => {
+    const blocks = [...element.children];
+    const start = blocks.findIndex((block) => block.textContent?.includes("粘贴空行起点"));
+    const end = blocks.findIndex((block) => block.textContent?.includes("粘贴空行终点"));
+    return {
+      start,
+      end,
+      emptyBlocks: blocks.slice(start + 1, end).filter((block) => !(block.textContent ?? "").trim()).length,
+    };
+  });
+  expect(pastedGap.start).toBeGreaterThanOrEqual(0);
+  expect(pastedGap.end).toBeGreaterThan(pastedGap.start);
+  expect(pastedGap.emptyBlocks).toBe(0);
 
   await editor.evaluate((element) => {
     const imageBytes = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nSIAAAAASUVORK5CYII="), (character) => character.charCodeAt(0));
@@ -143,7 +185,9 @@ test("activity strategy sections enforce publication, ownership and map gates", 
   await expect(page.getByRole("button", { name: "编辑攻略" })).toBeVisible();
   await expect(page.locator('.strategy-editor-canvas [contenteditable="true"]')).toHaveCount(0);
   await memberPage.reload();
-  await expect(memberPage.getByText("E1 解密验收：带对潜支援。")).toBeVisible();
+  const publishedGuide = memberPage.locator(".strategy-editor-canvas");
+  await expect(publishedGuide).toContainText("E1 解密验收：带对潜支援。");
+  await expect(publishedGuide.locator("s").filter({ hasText: "带对潜支援" })).toBeVisible();
   await expect(memberPage.locator('.strategy-routine-node[data-expanded="true"]')).toBeVisible();
   await expect(memberPage.getByText("（只读）")).toBeVisible({ timeout: 10_000 });
 
@@ -222,7 +266,7 @@ test("activity strategy sections enforce publication, ownership and map gates", 
   await page.reload();
   await expect(page.getByText("海图整理中")).toBeVisible();
   await expect(page.locator('.strategy-editor-canvas [contenteditable="true"]')).toHaveCount(0);
-  await expect(page.getByText("E1 解密验收：带对潜支援。")).toBeVisible();
+  await expect(page.locator(".strategy-editor-canvas")).toContainText("E1 解密验收：带对潜支援。");
 
   const closedEdit = await page.request.patch("/api/strategy", {
     data: {

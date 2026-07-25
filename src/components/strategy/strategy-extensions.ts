@@ -179,17 +179,82 @@ const StrategyAttributes = Extension.create({
   },
 });
 
+const invisibleSpacingPattern = /[\s\u00a0\u200b\u200c\u200d\u2060\ufeff]/g;
+const embeddedContentSelector = [
+  "audio",
+  "hr",
+  "iframe",
+  "img",
+  "object",
+  "svg",
+  "table",
+  "video",
+  "[data-routine-card]",
+  "[data-strategy-callout]",
+  "[data-strategy-column]",
+  "[data-strategy-columns]",
+].join(",");
+
+function isEmptyPasteBlock(element: HTMLElement) {
+  if (!["DIV", "P"].includes(element.tagName)) return false;
+  if (element.closest("td,th,li")) return false;
+  if (element.matches(embeddedContentSelector) || element.querySelector(embeddedContentSelector)) return false;
+  return (element.textContent ?? "").replace(invisibleSpacingPattern, "") === "";
+}
+
+function collapseExcessBreaks(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>("p,div,span").forEach((element) => {
+    let consecutiveBreaks = 0;
+    for (const node of [...element.childNodes]) {
+      if (node instanceof HTMLBRElement) {
+        consecutiveBreaks += 1;
+        if (consecutiveBreaks > 2) node.remove();
+        continue;
+      }
+      if (node.nodeType === globalThis.Node.TEXT_NODE && !(node.textContent ?? "").replace(invisibleSpacingPattern, "")) {
+        continue;
+      }
+      consecutiveBreaks = 0;
+    }
+  });
+}
+
+export function normalizeStrategyPastedText(text: string) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const normalized: string[] = [];
+  let previousWasBlank = false;
+
+  for (const line of lines) {
+    const isBlank = line.replace(invisibleSpacingPattern, "") === "";
+    if (isBlank) {
+      if (normalized.length > 0 && !previousWasBlank) normalized.push("");
+      previousWasBlank = true;
+      continue;
+    }
+    normalized.push(line);
+    previousWasBlank = false;
+  }
+
+  if (normalized.at(-1) === "") normalized.pop();
+  return normalized.join("\n");
+}
+
 function cleanOfficeHtml(html: string) {
   if (typeof DOMParser === "undefined") return html;
   const document = new DOMParser().parseFromString(html, "text/html");
   document.querySelectorAll("script,style,meta,link,object,iframe").forEach((node) => node.remove());
+  collapseExcessBreaks(document.body);
+  [...document.body.querySelectorAll<HTMLElement>("p,div")]
+    .filter(isEmptyPasteBlock)
+    .reverse()
+    .forEach((element) => element.remove());
   document.querySelectorAll<HTMLElement>("*").forEach((element) => {
     for (const attribute of [...element.attributes]) {
       if (attribute.name.startsWith("on") || ["class", "id", "width", "height"].includes(attribute.name)) {
         element.removeAttribute(attribute.name);
       }
     }
-    const allowedStyles = ["color", "background-color", "font-weight", "font-style", "text-align"];
+    const allowedStyles = ["color", "background-color", "font-weight", "font-style", "text-align", "text-decoration"];
     const style = allowedStyles
       .map((property) => {
         const value = element.style.getPropertyValue(property);
@@ -235,15 +300,13 @@ export function createStrategyExtensions(options: {
     RoutineCardExtension,
     Extension.create({
       name: "officePasteCleaner",
-      addProseMirrorPlugins() { return []; },
+      transformPastedHTML(html) {
+        return cleanOfficeHtml(html);
+      },
       addKeyboardShortcuts() {
         return {
           Tab: () => this.editor.isActive("table") ? false : this.editor.commands.command(({ tr }) => { tr.insertText("    "); return true; }),
         };
-      },
-      addOptions() { return {}; },
-      onCreate() {
-        this.editor.setOptions({ editorProps: { ...this.editor.options.editorProps, transformPastedHTML: cleanOfficeHtml } });
       },
     }),
   ];

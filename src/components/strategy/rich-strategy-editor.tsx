@@ -20,6 +20,7 @@ import {
   Redo2,
   RefreshCw,
   RemoveFormatting,
+  Strikethrough,
   Table2,
   Trash2,
   Underline,
@@ -33,6 +34,7 @@ import { Select } from "@/components/ui/select";
 import {
   columnsContent,
   createStrategyExtensions,
+  normalizeStrategyPastedText,
 } from "@/components/strategy/strategy-extensions";
 import type { RoutineCardView, StrategyPostView } from "@/components/strategy/strategy-types";
 import { extractStrategyPlainText, parseStrategyDocument } from "@/lib/strategy-workspace";
@@ -174,6 +176,7 @@ export function RichStrategyEditor({
       attributes: {
         "aria-label": editable ? "攻略正文编辑器" : "攻略正文",
       },
+      transformPastedText: normalizeStrategyPastedText,
     },
     onCreate({ editor: instance }) {
       editorRef.current = instance;
@@ -334,6 +337,7 @@ export function RichStrategyEditor({
     selector: ({ editor: instance }) => instance ? ({
       bold: instance.isActive("bold"),
       italic: instance.isActive("italic"),
+      strike: instance.isActive("strike"),
       underline: instance.isActive("underline"),
       bulletList: instance.isActive("bulletList"),
       orderedList: instance.isActive("orderedList"),
@@ -419,6 +423,7 @@ export function RichStrategyEditor({
           </Select>
           <ToolbarButton title="粗体" active={state?.bold} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></ToolbarButton>
           <ToolbarButton title="斜体" active={state?.italic} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></ToolbarButton>
+          <ToolbarButton title="删除线" active={state?.strike} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-4 w-4" /></ToolbarButton>
           <ToolbarButton title="下划线" active={state?.underline} onClick={() => editor.chain().focus().toggleUnderline().run()}><Underline className="h-4 w-4" /></ToolbarButton>
           <div className="flex items-center gap-1 px-1" aria-label="文字颜色">
             {["#e2e8f0", "#38bdf8", "#34d399", "#facc15", "#fb923c", "#f87171"].map((color) => (
