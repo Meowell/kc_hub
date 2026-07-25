@@ -191,6 +191,28 @@ test("activity strategy sections enforce publication, ownership and map gates", 
   await expect(memberPage.locator('.strategy-routine-node[data-expanded="true"]')).toBeVisible();
   await expect(memberPage.getByText("（只读）")).toBeVisible({ timeout: 10_000 });
 
+  await memberPage.getByRole("button", { name: "写我的攻略" }).click();
+  const memberEditor = memberPage.locator('.strategy-editor-canvas [contenteditable="true"]');
+  await expect(memberEditor).toBeVisible();
+  await memberEditor.click();
+  await memberPage.keyboard.insertText(`提督C分块攻略-${suffix}`);
+  await expect(memberPage.getByText("已自动保存")).toBeVisible({ timeout: 10_000 });
+  await memberPage.getByRole("button", { name: "发布" }).click();
+  await expect(memberPage.getByText("已发布")).toBeVisible({ timeout: 10_000 });
+  await memberPage.getByRole("button", { name: "提督A", exact: true }).click();
+  await expect(memberPage.locator(".strategy-editor-canvas")).toContainText("E1 解密验收");
+
+  await page.reload();
+  await page.getByRole("button", { name: "提督C", exact: true }).click();
+  await expect(page.locator(".strategy-editor-canvas")).toContainText(`提督C分块攻略-${suffix}`);
+  const selectionOutline = page.getByRole("navigation", { name: "攻略分块目录" });
+  await selectionOutline.getByRole("button", { name: /E1 P1/ }).click();
+  await selectionOutline.getByRole("button", { name: /E1 解密1/ }).click();
+  await expect(page.locator(".strategy-editor-canvas")).toContainText(`提督C分块攻略-${suffix}`);
+  await page.reload();
+  await expect(page.locator(".strategy-editor-canvas")).toContainText(`提督C分块攻略-${suffix}`);
+  await page.getByRole("button", { name: "我的攻略", exact: true }).click();
+
   const guideOutline = page.getByRole("navigation", { name: "攻略分块目录" });
   const authoredSection = guideOutline.locator('button[data-has-guides="true"]').filter({ hasText: "E1 解密1" });
   const emptySection = guideOutline.locator('button[data-has-guides="false"]').filter({ hasText: "E1 解密2" });

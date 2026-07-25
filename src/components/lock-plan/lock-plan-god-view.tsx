@@ -40,6 +40,11 @@ import {
 import { createMasterLookup, getShipNameFromLookup, getShipTypeFromLookup } from "@/lib/master-data";
 import { deriveShipStock, type ShipStock } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
+import {
+  mergeIdOrder,
+  moveIdOntoTarget,
+  parseStoredIdList,
+} from "@/lib/view-preferences";
 
 // ============================================================
 // Types matching API response shape
@@ -243,6 +248,53 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
     setCopyHintsByTagId({});
     setCopyPreview(null);
   }, [activityId]);
+
+  // ---- Personal matrix row order ----
+  const defaultUserOrder = useMemo(
+    () => initialUsers.map((user) => user.userId),
+    [initialUsers],
+  );
+  const userOrderStorageKey = `kancolle:lock-plan:user-order:v1:${currentUserId}:${activityId ?? "daily"}`;
+  const [userOrder, setUserOrder] = useState<string[]>(defaultUserOrder);
+  const [draggedUserId, setDraggedUserId] = useState<string | null>(null);
+  const [dragOverUserId, setDragOverUserId] = useState<string | null>(null);
+  const [sortAnnouncement, setSortAnnouncement] = useState("");
+
+  useEffect(() => {
+    let persistedOrder: string[] = [];
+    try {
+      persistedOrder = parseStoredIdList(window.localStorage.getItem(userOrderStorageKey));
+    } catch {
+      // Storage can be unavailable in privacy-restricted browsers.
+    }
+    setUserOrder(mergeIdOrder(defaultUserOrder, persistedOrder));
+  }, [defaultUserOrder, userOrderStorageKey]);
+
+  const orderedUsers = useMemo(() => {
+    const usersById = new Map(initialUsers.map((user) => [user.userId, user]));
+    return mergeIdOrder(defaultUserOrder, userOrder)
+      .map((userId) => usersById.get(userId))
+      .filter((user): user is (typeof initialUsers)[number] => !!user);
+  }, [defaultUserOrder, initialUsers, userOrder]);
+
+  const persistUserOrder = useCallback((nextOrder: string[]) => {
+    setUserOrder(nextOrder);
+    try {
+      window.localStorage.setItem(userOrderStorageKey, JSON.stringify(nextOrder));
+    } catch {
+      // Keep the in-memory order when browser storage is unavailable.
+    }
+  }, [userOrderStorageKey]);
+
+  const moveUser = useCallback((movedUserId: string, targetUserId: string) => {
+    const currentOrder = mergeIdOrder(defaultUserOrder, userOrder);
+    const nextOrder = moveIdOntoTarget(currentOrder, movedUserId, targetUserId);
+    if (nextOrder.every((userId, index) => userId === currentOrder[index])) return;
+    persistUserOrder(nextOrder);
+    const movedUser = initialUsers.find((user) => user.userId === movedUserId);
+    const nextIndex = nextOrder.indexOf(movedUserId);
+    setSortAnnouncement(`${movedUser?.userName ?? "成员"}已移动到第${nextIndex + 1}位`);
+  }, [defaultUserOrder, initialUsers, persistUserOrder, userOrder]);
 
   // ---- Error / saving ----
   const [error, setError] = useState("");
@@ -1181,7 +1233,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
           ))}
           {mobileView === "overview" && (
             <div className="space-y-2">
-              {initialUsers.map((user) => {
+              {orderedUsers.map((user) => {
                 const assignedCount = activeTags.reduce((count, tag) => count + parseAssignments(plansByUser[user.userId]?.[tag.id] ?? "[]").filter(Boolean).length, 0);
                 return (
                   <details key={user.userId} className="rounded-md border border-border-base bg-slate-950/30">
@@ -1246,7 +1298,8 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
 
       {/* Section 3: User rows */}
       <div className="hidden space-y-6 md:block">
-        {initialUsers.map((user, idx) => {
+        <p className="sr-only" role="status" aria-live="polite">{sortAnnouncement}</p>
+        {orderedUsers.map((user, idx) => {
           // Derive plans from plansByUser state (not from initialUsers) so UI reflects real-time changes
           const userPlansState = plansByUser[user.userId] ?? {};
           const derivedPlans = activeTags
@@ -1298,6 +1351,36 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                 }}
                 readOnly={!canEditAllPlans && user.userId !== currentUserId}
                 highlightTagId={initialTagId}
+                sortIndex={idx}
+                sortCount={orderedUsers.length}
+                isSorting={draggedUserId === user.userId}
+                isSortTarget={dragOverUserId === user.userId && draggedUserId !== user.userId}
+                onSortDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", user.userId);
+                  setDraggedUserId(user.userId);
+                }}
+                onSortDragOver={(event) => {
+                  if (!draggedUserId || draggedUserId === user.userId) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDragOverUserId(user.userId);
+                }}
+                onSortDrop={(event) => {
+                  event.preventDefault();
+                  const movedUserId = draggedUserId || event.dataTransfer.getData("text/plain");
+                  if (movedUserId) moveUser(movedUserId, user.userId);
+                  setDraggedUserId(null);
+                  setDragOverUserId(null);
+                }}
+                onSortDragEnd={() => {
+                  setDraggedUserId(null);
+                  setDragOverUserId(null);
+                }}
+                onSortMove={(direction) => {
+                  const targetUser = orderedUsers[idx + direction];
+                  if (targetUser) moveUser(user.userId, targetUser.userId);
+                }}
               />
             </div>
           );

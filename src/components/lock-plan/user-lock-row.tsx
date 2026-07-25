@@ -1,11 +1,14 @@
 "use client";
 
 import Image from "next/image";
+import { GripVertical } from "lucide-react";
+import { type DragEvent, type KeyboardEvent } from "react";
 import { type ShipStock } from "@/lib/noro6";
 import { type CopySlotHint, type LockAssignment } from "@/lib/lock-plan-helpers";
 import { type ActivityBonusGroup } from "@/lib/activity-bonus";
 import { TagLockColumn } from "@/components/lock-plan/tag-lock-column";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type TagInfo = { id: string; name: string; colorClass: string };
 type PlanInfo = { planId: string; tagId: string; assignedData: string; note: string | null; updatedAt?: string };
@@ -30,6 +33,15 @@ type UserLockRowProps = {
   onDropShip?: (userId: string, targetTagId: string, uniqueId: string, shipId: number, sourceTagId: string, targetIndex: number) => void;
   readOnly?: boolean;
   highlightTagId?: string;
+  sortIndex?: number;
+  sortCount?: number;
+  isSorting?: boolean;
+  isSortTarget?: boolean;
+  onSortDragStart?: (event: DragEvent<HTMLButtonElement>) => void;
+  onSortDragOver?: (event: DragEvent<HTMLDivElement>) => void;
+  onSortDrop?: (event: DragEvent<HTMLDivElement>) => void;
+  onSortDragEnd?: () => void;
+  onSortMove?: (direction: -1 | 1) => void;
 };
 
 export function UserLockRow({
@@ -37,18 +49,45 @@ export function UserLockRow({
   getShipName, getShipType, bonusGroupsByTagId = {},
   copyHintsByTagId = {}, copyDisabledReasonByTagId = {}, onCopyToMine,
   onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false, highlightTagId,
+  sortIndex, sortCount, isSorting = false, isSortTarget = false,
+  onSortDragStart, onSortDragOver, onSortDrop, onSortDragEnd, onSortMove,
 }: UserLockRowProps) {
   const planByTagId = new Map(plans.map((p) => [p.tagId, p]));
 
+  function handleSortKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (!onSortMove || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+    event.preventDefault();
+    onSortMove(event.key === "ArrowUp" ? -1 : 1);
+  }
+
   return (
     <div
-      className="overflow-x-auto pb-2"
+      className={cn(
+        "overflow-x-auto pb-2 transition-shadow",
+        isSortTarget && "ring-2 ring-inset ring-sky-400/70",
+      )}
       data-testid="lock-plan-user-row"
       data-user-name={userName}
+      onDragOver={onSortDragOver}
+      onDrop={onSortDrop}
     >
       <div className="flex min-w-max items-start gap-4">
         <div className="sticky left-0 z-20 w-[180px] shrink-0 border border-border-base bg-bg-panel/95 p-3 shadow-xl shadow-black/20">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            draggable={!!onSortDragStart}
+            data-testid="lock-plan-user-sort-handle"
+            aria-label={`调整${userName}的显示顺序，当前第${(sortIndex ?? 0) + 1}位，共${sortCount ?? 1}位`}
+            title="拖动调整顺序，也可使用上下方向键"
+            onDragStart={onSortDragStart}
+            onDragEnd={onSortDragEnd}
+            onKeyDown={handleSortKeyDown}
+            className={cn(
+              "flex w-full select-none items-center gap-3 text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-sky-300/70",
+              onSortDragStart && "cursor-grab active:cursor-grabbing",
+              isSorting && "opacity-55",
+            )}
+          >
             {avatarUrl ? (
               <Image src={avatarUrl} alt={userName} width={32} height={32} unoptimized className="h-8 w-8 rounded-md object-cover ring-1 ring-blue-500/30" />
             ) : (
@@ -60,7 +99,8 @@ export function UserLockRow({
               <h3 className="truncate text-sm font-bold text-white">{userName}</h3>
               <p className="terminal-label mt-0.5 text-[10px] text-slate-500">{hasShipData ? "DATA READY" : "NO DATA"}</p>
             </div>
-          </div>
+            <GripVertical className="ml-auto h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
+          </button>
           {readOnly && (
             <Badge variant="secondary" className="mt-3 text-slate-400 bg-slate-700/30 border-slate-600/30">
               只读

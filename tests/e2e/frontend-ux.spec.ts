@@ -289,6 +289,22 @@ test("copies another user's single lock tag with transient missing-ship hints", 
     await page.goto(`/lock-plan?activityId=${activity.activity.id}`);
     const targetRow = page.locator('[data-testid="lock-plan-user-row"][data-user-name="提督A"]');
     const sourceRow = page.locator('[data-testid="lock-plan-user-row"][data-user-name="提督B"]');
+    const visibleUserNames = () => page.locator('[data-testid="lock-plan-user-row"]')
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-user-name") ?? ""));
+    expect((await visibleUserNames()).indexOf("提督A")).toBeLessThan(
+      (await visibleUserNames()).indexOf("提督B"),
+    );
+    await sourceRow.getByTestId("lock-plan-user-sort-handle")
+      .dragTo(targetRow.getByTestId("lock-plan-user-sort-handle"));
+    await expect.poll(async () => {
+      const names = await visibleUserNames();
+      return names.indexOf("提督B") < names.indexOf("提督A");
+    }).toBe(true);
+    await page.reload();
+    await expect.poll(async () => {
+      const names = await visibleUserNames();
+      return names.indexOf("提督B") < names.indexOf("提督A");
+    }).toBe(true);
     await expect(targetRow.getByRole("button", { name: new RegExp(`拷贝${tagName}`) })).toHaveCount(0);
 
     await sourceRow.getByRole("button", { name: `拷贝${tagName}到我的札` }).click();
@@ -332,6 +348,8 @@ test("copies another user's single lock tag with transient missing-ship hints", 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/lock-plan?activityId=${activity.activity.id}`);
     await page.getByRole("tab", { name: "全员概览" }).click();
+    const overviewNames = await page.locator("details > summary > span:first-child").allTextContents();
+    expect(overviewNames.indexOf("提督B")).toBeLessThan(overviewNames.indexOf("提督A"));
     const sourceDetails = page.locator("details").filter({ hasText: "提督B" });
     await sourceDetails.locator("summary").click();
     await sourceDetails.getByRole("button", { name: `拷贝${tagName}到我的札` }).click();

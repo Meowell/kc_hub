@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { getLockTagColorClassName, getLockTagColorStyle, isCustomLockTagColor } from "@/lib/lock-tag-colors";
 import { EMPTY_STRATEGY_DOCUMENT, STRATEGY_CONTENT_FORMAT } from "@/lib/strategy-workspace";
 import { cn } from "@/lib/utils";
+import { parseStoredStringMap } from "@/lib/view-preferences";
 
 type SavePayload = { content: string; plainText: string; hasPendingUploads: boolean };
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
@@ -236,8 +237,37 @@ export function StrategyWorkspace({
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(firstSectionId);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [selectedLegacyPostId, setSelectedLegacyPostId] = useState<string | null>(null);
+  const [pendingPostSelection, setPendingPostSelection] = useState<{
+    postId: string;
+    sectionId: string;
+  } | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const postSelectionStorageKey = `kancolle:strategy:last-post:v1:${currentUserId}:${activityId}`;
+  const [rememberedPostSelection, setRememberedPostSelection] = useState<{
+    storageKey: string;
+    bySectionId: Record<string, string>;
+  }>({ storageKey: "", bySectionId: {} });
+
+  useEffect(() => {
+    let bySectionId: Record<string, string> = {};
+    try {
+      bySectionId = parseStoredStringMap(window.localStorage.getItem(postSelectionStorageKey));
+    } catch {
+      // Storage can be unavailable in privacy-restricted browsers.
+    }
+    setRememberedPostSelection({
+      storageKey: postSelectionStorageKey,
+      bySectionId,
+    });
+    setPendingPostSelection(null);
+  }, [postSelectionStorageKey]);
+
+  useEffect(() => {
+    if (!pendingPostSelection) return;
+    const timer = window.setTimeout(() => setPendingPostSelection(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [pendingPostSelection]);
 
   useEffect(() => {
     if (selectedLegacyPostId) return;
@@ -255,11 +285,72 @@ export function StrategyWorkspace({
       .sort((a, b) => a.userId === currentUserId ? -1 : b.userId === currentUserId ? 1 : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [currentUserId, selectedSection]);
   const ownPost = visiblePosts.find((post) => post.userId === currentUserId) ?? null;
+  const postSelectionReady = rememberedPostSelection.storageKey === postSelectionStorageKey;
 
   useEffect(() => {
+    if (!postSelectionReady || selectedLegacyPostId) return;
+    if (pendingPostSelection) {
+      if (pendingPostSelection.sectionId !== selectedSectionId) {
+        setPendingPostSelection(null);
+      } else if (visiblePosts.some((post) => post.id === pendingPostSelection.postId)) {
+        setSelectedPostId(pendingPostSelection.postId);
+        setPendingPostSelection(null);
+      }
+      return;
+    }
     if (selectedPostId && visiblePosts.some((post) => post.id === selectedPostId)) return;
-    setSelectedPostId(ownPost?.id ?? visiblePosts[0]?.id ?? null);
-  }, [ownPost?.id, selectedPostId, selectedSectionId, visiblePosts]);
+    const rememberedPostId = selectedSectionId
+      ? rememberedPostSelection.bySectionId[selectedSectionId]
+      : null;
+    const rememberedPost = visiblePosts.find((post) => post.id === rememberedPostId);
+    setSelectedPostId(rememberedPost?.id ?? ownPost?.id ?? visiblePosts[0]?.id ?? null);
+  }, [
+    ownPost?.id,
+    postSelectionReady,
+    pendingPostSelection,
+    rememberedPostSelection.bySectionId,
+    selectedLegacyPostId,
+    selectedPostId,
+    selectedSectionId,
+    visiblePosts,
+  ]);
+
+  useEffect(() => {
+    if (
+      !postSelectionReady
+      || selectedLegacyPostId
+      || pendingPostSelection
+      || !selectedSectionId
+      || !selectedPostId
+      || !visiblePosts.some((post) => post.id === selectedPostId)
+      || rememberedPostSelection.bySectionId[selectedSectionId] === selectedPostId
+    ) {
+      return;
+    }
+
+    const bySectionId = {
+      ...rememberedPostSelection.bySectionId,
+      [selectedSectionId]: selectedPostId,
+    };
+    try {
+      window.localStorage.setItem(postSelectionStorageKey, JSON.stringify(bySectionId));
+    } catch {
+      // Keep the in-memory preference when browser storage is unavailable.
+    }
+    setRememberedPostSelection({
+      storageKey: postSelectionStorageKey,
+      bySectionId,
+    });
+  }, [
+    postSelectionReady,
+    postSelectionStorageKey,
+    pendingPostSelection,
+    rememberedPostSelection.bySectionId,
+    selectedLegacyPostId,
+    selectedPostId,
+    selectedSectionId,
+    visiblePosts,
+  ]);
   const selectedPost = visiblePosts.find((post) => post.id === selectedPostId) ?? null;
   const selectedLegacyPost = legacyPosts.find((post) => post.id === selectedLegacyPostId) ?? null;
   const selectedMapWritable = Boolean(activityWritable && selectedMap?.isOpenForPosts);
@@ -284,6 +375,7 @@ export function StrategyWorkspace({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "创建攻略失败");
+      setPendingPostSelection({ postId: data.post.id, sectionId: selectedSection.id });
       setSelectedPostId(data.post.id);
       router.refresh();
     } catch (err) {
@@ -308,6 +400,7 @@ export function StrategyWorkspace({
       return;
     }
     setSelectedLegacyPostId(null);
+    setPendingPostSelection({ postId: data.post.id, sectionId: selectedSection.id });
     setSelectedPostId(data.post.id);
     router.refresh();
   }
