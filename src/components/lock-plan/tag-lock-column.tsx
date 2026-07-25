@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { BadgePercent } from "lucide-react";
+import { BadgePercent, Copy } from "lucide-react";
 
 import { BonusGroupDetails } from "@/components/lock-plan/bonus-group-details";
 import { ShipCell } from "@/components/lock-plan/ship-cell";
@@ -25,6 +25,7 @@ import {
 import {
   parseAssignments,
   reorderAssignmentWithinTag,
+  type CopySlotHint,
   type LockAssignment,
 } from "@/lib/lock-plan-helpers";
 import { type ShipStock } from "@/lib/noro6";
@@ -40,6 +41,9 @@ type TagLockColumnProps = {
   getShipName: (shipId: number) => string;
   getShipType: (shipId: number) => string;
   bonusGroups?: ActivityBonusGroup[];
+  copyHints?: (CopySlotHint | null)[];
+  onCopyToMine?: (tagId: string) => void;
+  copyDisabledReason?: string | null;
   onCellClick: (tagId: string, rowIndex: number) => void;
   onRemoveShip: (tagId: string, uniqueId: string) => void;
   onReorder?: (tagId: string, newAssignments: (LockAssignment | null)[]) => void;
@@ -78,7 +82,8 @@ function saveSlotCount(tagId: string, count: number) {
 
 export function TagLockColumn({
   tagId, tagName, tagColorClass, assignedData, ships, userId,
-  getShipName, getShipType, bonusGroups = [],
+  getShipName, getShipType, bonusGroups = [], copyHints = [],
+  onCopyToMine, copyDisabledReason,
   onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false, highlighted = false,
 }: TagLockColumnProps) {
   const assignments = useMemo(() => parseAssignments(assignedData), [assignedData]);
@@ -88,8 +93,14 @@ export function TagLockColumn({
     [assignments],
   );
 
+  const hintedSlotCount = copyHints.reduce(
+    (count, hint, index) => hint ? Math.max(count, index + 1) : count,
+    0,
+  );
+  const requiredSlotCount = Math.max(filledCount, assignments.length, hintedSlotCount);
+
   // Server-safe default: no localStorage access during SSR
-  const defaultSlotCount = Math.max(1, Math.min(filledCount, MAX_SLOTS));
+  const defaultSlotCount = Math.max(1, Math.min(requiredSlotCount, MAX_SLOTS));
 
   const [slotCount, setSlotCount] = useState(defaultSlotCount);
   const [slotInitialized, setSlotInitialized] = useState(false);
@@ -111,15 +122,15 @@ export function TagLockColumn({
     }
   }, [tagId, slotCount, slotInitialized]);
 
-  // Auto-expand slotCount when filled count exceeds current slots
+  // Preserve source positions and make trailing copy hints visible.
   useEffect(() => {
-    if (filledCount > slotCount) {
-      setSlotCount(filledCount);
+    if (requiredSlotCount > slotCount) {
+      setSlotCount(Math.min(requiredSlotCount, MAX_SLOTS));
     }
-  }, [filledCount, slotCount]);
+  }, [requiredSlotCount, slotCount]);
 
-  // Always show enough slots: at least slotCount, at least filledCount
-  const visibleCount = Math.min(Math.max(slotCount, filledCount), MAX_SLOTS);
+  // Always show enough slots for assigned positions and transient hints.
+  const visibleCount = Math.min(Math.max(slotCount, requiredSlotCount), MAX_SLOTS);
 
   // Column-level drag-over highlight (not per-cell, to avoid re-renders during drag)
   const [columnDragOver, setColumnDragOver] = useState(false);
@@ -251,15 +262,32 @@ export function TagLockColumn({
     >
       <div
         className={cn(
-          "sticky top-0 z-10 mb-2 rounded-sm px-2 py-1 shadow-sm",
+          "sticky top-0 z-10 mb-2 w-full rounded-sm px-2 py-1 shadow-sm",
           getLockTagColorClassName(tagColorClass),
           !isCustomLockTagColor(tagColorClass) && "text-slate-800",
         )}
         style={getLockTagColorStyle(tagColorClass)}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-bold text-inherit whitespace-nowrap">{tagName}</span>
-          <div className="flex items-center gap-1">
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-inherit">{tagName}</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {onCopyToMine && (
+              <button
+                type="button"
+                disabled={!!copyDisabledReason}
+                onClick={() => onCopyToMine(tagId)}
+                title={copyDisabledReason ?? `拷贝${tagName}到我的札`}
+                aria-label={copyDisabledReason ? `无法拷贝${tagName}：${copyDisabledReason}` : `拷贝${tagName}到我的札`}
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded text-inherit transition",
+                  copyDisabledReason
+                    ? "cursor-not-allowed opacity-30"
+                    : "hover:bg-black/10 focus:outline-none focus:ring-2 focus:ring-white/70",
+                )}
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               disabled={visibleCount <= 1}
@@ -313,10 +341,12 @@ export function TagLockColumn({
           <div key={colIndex} className="flex w-[150px] flex-col gap-1.5">
             {colSlots.map((assignment, rowIndex) => {
               const globalIndex = colIndex * ROWS_PER_COL + rowIndex;
+              const copyHint = copyHints[globalIndex] ?? null;
               return (
 <ShipCell
-  key={assignment?.uniqueId ?? `empty-${colIndex}-${rowIndex}`}
+  key={assignment?.uniqueId ?? (copyHint ? `hint-${globalIndex}-${copyHint.shipId}` : `empty-${colIndex}-${rowIndex}`)}
   assignment={assignment}
+  copyHint={copyHint}
   ship={assignment ? shipByUniqueId.get(assignment.uniqueId) : null}
   tagColorClass={tagColorClass}
   getShipName={getShipName}

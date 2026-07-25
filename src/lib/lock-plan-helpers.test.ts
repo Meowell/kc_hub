@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  buildCopiedLockPlan,
   buildLockMatrixSummary,
   getDefaultMobileTagId,
   getSaveStatusDisplay,
@@ -9,6 +10,173 @@ import {
   moveAssignmentBetweenTags,
   reorderAssignmentWithinTag,
 } from "./lock-plan-helpers";
+import { type ShipStock } from "./noro6";
+
+function ship(uniqueId: string, shipId: number, level: number): ShipStock {
+  return {
+    uniqueId,
+    shipId,
+    level,
+    firepower: 0,
+    torpedo: 0,
+    antiAir: 0,
+    armor: 0,
+    luck: 0,
+    hp: 0,
+    asw: 0,
+  };
+}
+
+describe("buildCopiedLockPlan", () => {
+  it("matches exact ship ids only and leaves other remodels as hinted empty slots", () => {
+    const result = buildCopiedLockPlan({
+      sourceAssignments: [{ uniqueId: "source-101", shipId: 101 }],
+      sourceShips: [ship("source-101", 101, 70)],
+      targetShips: [ship("target-102", 102, 70)],
+      targetAssignments: [],
+      otherTargetAssignments: [],
+    });
+
+    assert.deepEqual(result.assignments, [null]);
+    assert.deepEqual(result.hints, [{ shipId: 101, sourceLevel: 70 }]);
+    assert.equal(result.matchedCount, 0);
+    assert.equal(result.missingCount, 1);
+  });
+
+  it("uses each exact-form copy once and selects the closest source level", () => {
+    const result = buildCopiedLockPlan({
+      sourceAssignments: [
+        { uniqueId: "source-low", shipId: 101 },
+        { uniqueId: "source-high", shipId: 101 },
+      ],
+      sourceShips: [
+        ship("source-low", 101, 50),
+        ship("source-high", 101, 80),
+      ],
+      targetShips: [
+        ship("target-55", 101, 55),
+        ship("target-75", 101, 75),
+      ],
+      targetAssignments: [],
+      otherTargetAssignments: [],
+    });
+
+    assert.deepEqual(result.assignments, [
+      { uniqueId: "target-55", shipId: 101 },
+      { uniqueId: "target-75", shipId: 101 },
+    ]);
+    assert.equal(result.matchedCount, 2);
+    assert.equal(result.missingCount, 0);
+  });
+
+  it("prefers the higher level on an equal distance and then a stable unique id", () => {
+    const result = buildCopiedLockPlan({
+      sourceAssignments: [
+        { uniqueId: "source", shipId: 101 },
+        { uniqueId: "missing-level", shipId: 102 },
+      ],
+      sourceShips: [ship("source", 101, 60)],
+      targetShips: [
+        ship("target-low", 101, 50),
+        ship("target-high", 101, 70),
+        ship("target-b", 102, 90),
+        ship("target-a", 102, 90),
+      ],
+      targetAssignments: [],
+      otherTargetAssignments: [],
+    });
+
+    assert.deepEqual(result.assignments, [
+      { uniqueId: "target-high", shipId: 101 },
+      { uniqueId: "target-a", shipId: 102 },
+    ]);
+  });
+
+  it("releases ships in the replaced tag while excluding ships locked in other tags", () => {
+    const result = buildCopiedLockPlan({
+      sourceAssignments: [{ uniqueId: "source", shipId: 101 }],
+      sourceShips: [ship("source", 101, 80)],
+      targetShips: [
+        ship("released", 101, 75),
+        ship("locked-elsewhere", 101, 80),
+      ],
+      targetAssignments: [{ uniqueId: "released", shipId: 101 }],
+      otherTargetAssignments: [{ uniqueId: "locked-elsewhere", shipId: 101 }],
+    });
+
+    assert.deepEqual(result.assignments, [{ uniqueId: "released", shipId: 101 }]);
+    assert.equal(result.replacedCount, 1);
+  });
+
+  it("preserves source gaps and emits hints for every unmatched occupied slot", () => {
+    const result = buildCopiedLockPlan({
+      sourceAssignments: [
+        { uniqueId: "source-a", shipId: 101 },
+        null,
+        { uniqueId: "source-b", shipId: 102 },
+      ],
+      sourceShips: [
+        ship("source-a", 101, 40),
+        ship("source-b", 102, 90),
+      ],
+      targetShips: [ship("target-a", 101, 42)],
+      targetAssignments: [
+        { uniqueId: "old-a", shipId: 201 },
+        { uniqueId: "old-b", shipId: 202 },
+      ],
+      otherTargetAssignments: [],
+    });
+
+    assert.deepEqual(result.assignments, [
+      { uniqueId: "target-a", shipId: 101 },
+      null,
+      null,
+    ]);
+    assert.deepEqual(result.hints, [
+      null,
+      null,
+      { shipId: 102, sourceLevel: 90 },
+    ]);
+    assert.deepEqual(
+      {
+        sourceCount: result.sourceCount,
+        matchedCount: result.matchedCount,
+        missingCount: result.missingCount,
+        replacedCount: result.replacedCount,
+      },
+      { sourceCount: 2, matchedCount: 1, missingCount: 1, replacedCount: 2 },
+    );
+  });
+
+  it("handles empty sources and an empty target ship pool", () => {
+    assert.deepEqual(
+      buildCopiedLockPlan({
+        sourceAssignments: [],
+        sourceShips: [],
+        targetShips: [],
+        targetAssignments: [],
+        otherTargetAssignments: [],
+      }),
+      {
+        assignments: [],
+        hints: [],
+        sourceCount: 0,
+        matchedCount: 0,
+        missingCount: 0,
+        replacedCount: 0,
+      },
+    );
+
+    const noStock = buildCopiedLockPlan({
+      sourceAssignments: [{ uniqueId: "source", shipId: 101 }],
+      sourceShips: [],
+      targetShips: [],
+      targetAssignments: [],
+      otherTargetAssignments: [],
+    });
+    assert.deepEqual(noStock.hints, [{ shipId: 101, sourceLevel: null }]);
+  });
+});
 
 describe("buildLockMatrixSummary", () => {
   it("counts active tags, assigned ships, missing ship data, and duplicate lock conflicts", () => {

@@ -1,4 +1,5 @@
 import { shipTypeLabels, type ShipMaster } from "@/lib/master-data";
+import { type ShipStock } from "@/lib/noro6";
 
 // ============================================================
 // Shared helpers for lock-plan components
@@ -10,6 +11,22 @@ export type LockAssignment = {
   uniqueId: string;
   shipId: number;
 };
+
+export type CopySlotHint = {
+  shipId: number;
+  sourceLevel: number | null;
+};
+
+export type LockPlanCopyResult = {
+  assignments: (LockAssignment | null)[];
+  hints: (CopySlotHint | null)[];
+  sourceCount: number;
+  matchedCount: number;
+  missingCount: number;
+  replacedCount: number;
+};
+
+type CopyShipStock = Pick<ShipStock, "uniqueId" | "shipId" | "level">;
 
 export const shipMasters: ShipMaster[] = [];
 export const masterByShipId = new Map<number, ShipMaster>();
@@ -42,6 +59,100 @@ export function parseAssignments(value: string): (LockAssignment | null)[] {
   } catch {
     return [];
   }
+}
+
+function compareCopyCandidates(
+  a: CopyShipStock,
+  b: CopyShipStock,
+  sourceLevel: number | null,
+) {
+  if (sourceLevel !== null) {
+    const levelDistance = Math.abs(a.level - sourceLevel) - Math.abs(b.level - sourceLevel);
+    if (levelDistance !== 0) return levelDistance;
+  }
+
+  if (a.level !== b.level) return b.level - a.level;
+  if (a.uniqueId === b.uniqueId) return 0;
+  return a.uniqueId < b.uniqueId ? -1 : 1;
+}
+
+export function buildCopiedLockPlan({
+  sourceAssignments,
+  sourceShips,
+  targetShips,
+  targetAssignments,
+  otherTargetAssignments,
+}: {
+  sourceAssignments: (LockAssignment | null)[];
+  sourceShips: CopyShipStock[];
+  targetShips: CopyShipStock[];
+  targetAssignments: (LockAssignment | null)[];
+  otherTargetAssignments: (LockAssignment | null)[];
+}): LockPlanCopyResult {
+  const sourceShipByUniqueId = new Map(
+    sourceShips.map((ship) => [ship.uniqueId, ship]),
+  );
+  const unavailableUniqueIds = new Set(
+    otherTargetAssignments.flatMap((assignment) =>
+      assignment ? [assignment.uniqueId] : [],
+    ),
+  );
+  const availableByShipId = new Map<number, CopyShipStock[]>();
+
+  for (const ship of targetShips) {
+    if (unavailableUniqueIds.has(ship.uniqueId)) continue;
+    const candidates = availableByShipId.get(ship.shipId);
+    if (candidates) {
+      candidates.push(ship);
+    } else {
+      availableByShipId.set(ship.shipId, [ship]);
+    }
+  }
+
+  const usedUniqueIds = new Set<string>();
+  let matchedCount = 0;
+  let missingCount = 0;
+
+  const assignments = sourceAssignments.map((sourceAssignment) => {
+    if (!sourceAssignment) return null;
+
+    const sourceShip = sourceShipByUniqueId.get(sourceAssignment.uniqueId);
+    const sourceLevel = Number.isFinite(sourceShip?.level)
+      ? sourceShip?.level ?? null
+      : null;
+    const candidate = (availableByShipId.get(sourceAssignment.shipId) ?? [])
+      .filter((ship) => !usedUniqueIds.has(ship.uniqueId))
+      .sort((a, b) => compareCopyCandidates(a, b, sourceLevel))[0];
+
+    if (!candidate) {
+      missingCount += 1;
+      return null;
+    }
+
+    usedUniqueIds.add(candidate.uniqueId);
+    matchedCount += 1;
+    return { uniqueId: candidate.uniqueId, shipId: candidate.shipId };
+  });
+
+  const hints = sourceAssignments.map((sourceAssignment, index) => {
+    if (!sourceAssignment || assignments[index]) return null;
+    const sourceShip = sourceShipByUniqueId.get(sourceAssignment.uniqueId);
+    return {
+      shipId: sourceAssignment.shipId,
+      sourceLevel: Number.isFinite(sourceShip?.level)
+        ? sourceShip?.level ?? null
+        : null,
+    };
+  });
+
+  return {
+    assignments,
+    hints,
+    sourceCount: sourceAssignments.filter(Boolean).length,
+    matchedCount,
+    missingCount,
+    replacedCount: targetAssignments.filter(Boolean).length,
+  };
 }
 
 export function reorderAssignmentWithinTag(

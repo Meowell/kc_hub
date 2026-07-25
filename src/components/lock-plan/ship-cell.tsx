@@ -3,10 +3,12 @@
 import { X } from "lucide-react";
 import { type ShipStock } from "@/lib/noro6";
 import { getLockTagColorClassName, getLockTagStripStyle } from "@/lib/lock-tag-colors";
+import { type CopySlotHint } from "@/lib/lock-plan-helpers";
 import { cn } from "@/lib/utils";
 
 type ShipCellProps = {
   assignment?: { uniqueId: string; shipId: number } | null;
+  copyHint?: CopySlotHint | null;
   ship?: ShipStock | null;
   tagColorClass: string;
   getShipName: (shipId: number) => string;
@@ -28,9 +30,40 @@ function levelColor(level: number): string {
 }
 
 export function ShipCell({
-  assignment, ship, tagColorClass, getShipName, getShipType, onClick, onRemove,
+  assignment, copyHint, ship, tagColorClass, getShipName, getShipType, onClick, onRemove,
   onDragStart, onDrop, onDragOver, columnDragOver, readOnly = false,
 }: ShipCellProps) {
+  if (!assignment && copyHint) {
+    const hintedShipName = getShipName(copyHint.shipId);
+    return (
+      <button
+        type="button"
+        disabled={readOnly}
+        onClick={readOnly ? undefined : onClick}
+        onDrop={readOnly ? undefined : onDrop}
+        onDragOver={readOnly ? undefined : onDragOver}
+        title={`缺少 ${hintedShipName}，点击选择替代舰船`}
+        aria-label={`缺少 ${hintedShipName}，点击选择替代舰船`}
+        className={cn(
+          "relative flex min-h-[2.8rem] w-full items-center overflow-hidden rounded-lg border border-dashed border-sky-400/55 bg-sky-500/10 px-2 py-1 text-left",
+          "transition hover:border-sky-300 hover:bg-sky-500/15 focus:outline-none focus:ring-2 focus:ring-sky-300/60",
+          readOnly ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+          !readOnly && columnDragOver && "border-blue-300 bg-blue-500/15",
+        )}
+      >
+        <span className="absolute left-2 top-1 text-[10px] font-semibold leading-none text-sky-200/70">
+          Lv{copyHint.sourceLevel ?? "?"}
+        </span>
+        <span className="ml-[33px] min-w-0 truncate text-xs font-semibold text-sky-100/65">
+          {hintedShipName}
+        </span>
+        <span className="absolute bottom-1 right-2 text-[9px] font-semibold text-sky-200/65">
+          缺船 · 点此替换
+        </span>
+      </button>
+    );
+  }
+
   if (!assignment) {
     return (
       <div

@@ -1,12 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-async function login(page: Page) {
+async function loginAs(page: Page, userName: string, pin: string) {
   await page.goto("/login");
-  await page.getByLabel("用户名").fill("提督A");
-  await page.getByLabel("PIN 码").fill("1001");
+  await page.getByLabel("用户名").fill(userName);
+  await page.getByLabel("PIN 码").fill(pin);
   await page.getByRole("button", { name: "进入指挥室" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
+}
+
+async function login(page: Page) {
+  await loginAs(page, "提督A", "1001");
 }
 
 async function expectNoDocumentOverflow(page: Page) {
@@ -187,6 +191,199 @@ test("ship picker keeps focus while an IME composition updates search results", 
   await page.request.put("/api/users/ship-data", {
     data: { shipData: restoreShipData },
   });
+});
+
+test("copies another user's single lock tag with transient missing-ship hints", async ({ page, browser }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "Desktop and mobile copy flows share one serial fixture.");
+
+  const sourceContext = await browser.newContext({
+    baseURL: "http://127.0.0.1:3100",
+  });
+  const sourcePage = await sourceContext.newPage();
+  await loginAs(sourcePage, "提督B", "1002");
+
+  const previousTargetResponse = await page.request.get("/api/users/ship-data");
+  const previousTarget = await previousTargetResponse.json() as { shipData?: string };
+  const previousSourceResponse = await sourcePage.request.get("/api/users/ship-data");
+  const previousSource = await previousSourceResponse.json() as { shipData?: string };
+  const restoreTargetShipData = previousTarget.shipData?.trim() || JSON.stringify({ ships: [], items: [] });
+  const restoreSourceShipData = previousSource.shipData?.trim() || JSON.stringify({ ships: [], items: [] });
+
+  const suffix = `${testInfo.project.name}-${Date.now()}`;
+  const tagName = `复制验收札-${suffix}`;
+
+  try {
+    const activityResponse = await page.request.post("/api/activities", {
+      data: { name: `复制验收活动-${suffix}` },
+    });
+    const activity = await activityResponse.json() as { activity: { id: string } };
+    expect(activityResponse.ok()).toBe(true);
+
+    const tagResponse = await page.request.post("/api/lock-tags", {
+      data: {
+        activityId: activity.activity.id,
+        name: tagName,
+        colorClass: "#73c7d4",
+      },
+    });
+    const tag = await tagResponse.json() as { tag: { id: string } };
+    expect(tagResponse.ok()).toBe(true);
+
+    expect((await page.request.put("/api/users/ship-data", {
+      data: {
+        shipData: JSON.stringify({
+          ships: [
+            { id: 102, lv: 72, st: [] },
+            { id: 104, lv: 40, st: [] },
+          ],
+          items: [],
+        }),
+      },
+    })).ok()).toBe(true);
+    expect((await sourcePage.request.put("/api/users/ship-data", {
+      data: {
+        shipData: JSON.stringify({
+          ships: [
+            { id: 102, lv: 75, st: [] },
+            { id: 103, lv: 55, st: [] },
+          ],
+          items: [],
+        }),
+      },
+    })).ok()).toBe(true);
+
+    const sourceAssignments = [
+      { uniqueId: "102:0", shipId: 102 },
+      { uniqueId: "103:0", shipId: 103 },
+    ];
+    const originalTargetAssignments = [
+      { uniqueId: "104:0", shipId: 104 },
+    ];
+    expect((await sourcePage.request.post("/api/lock-plan", {
+      data: {
+        tagId: tag.tag.id,
+        assignedData: JSON.stringify(sourceAssignments),
+        note: "来源备注",
+      },
+    })).ok()).toBe(true);
+    expect((await page.request.post("/api/lock-plan", {
+      data: {
+        tagId: tag.tag.id,
+        assignedData: JSON.stringify(originalTargetAssignments),
+        note: "保留备注",
+      },
+    })).ok()).toBe(true);
+
+    const waitForPlanSave = () => page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/lock-plan" &&
+      ["PATCH", "POST"].includes(response.request().method()),
+    );
+    const getTargetPlan = async () => {
+      const response = await page.request.get(`/api/lock-plan?activityId=${activity.activity.id}`);
+      const body = await response.json() as {
+        plans: Array<{ tagId: string; assignedData: string; note: string | null }>;
+      };
+      return body.plans.find((plan) => plan.tagId === tag.tag.id);
+    };
+
+    await page.goto(`/lock-plan?activityId=${activity.activity.id}`);
+    const targetRow = page.locator('[data-testid="lock-plan-user-row"][data-user-name="提督A"]');
+    const sourceRow = page.locator('[data-testid="lock-plan-user-row"][data-user-name="提督B"]');
+    await expect(targetRow.getByRole("button", { name: new RegExp(`拷贝${tagName}`) })).toHaveCount(0);
+
+    await sourceRow.getByRole("button", { name: `拷贝${tagName}到我的札` }).click();
+    const preview = page.getByRole("alertdialog", { name: "拷贝到我的札" });
+    await expect(preview).toBeVisible();
+    await expect(preview.getByTestId("copy-preview-来源")).toHaveText("2");
+    await expect(preview.getByTestId("copy-preview-匹配")).toHaveText("1");
+    await expect(preview.getByTestId("copy-preview-缺船")).toHaveText("1");
+    await expect(preview.getByTestId("copy-preview-将替换")).toHaveText("1");
+
+    const desktopSave = waitForPlanSave();
+    await preview.getByRole("button", { name: "复制到我的札" }).click();
+    expect((await desktopSave).ok()).toBe(true);
+
+    const desktopGhost = targetRow.getByRole("button", { name: /缺少 .+，点击选择替代舰船/ });
+    await expect(desktopGhost).toBeVisible();
+    await desktopGhost.click();
+    await expect(page.getByRole("dialog", { name: "选择舰娘" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    const copiedTargetPlan = await getTargetPlan();
+    expect(JSON.parse(copiedTargetPlan?.assignedData ?? "[]")).toEqual([
+      { uniqueId: "102:0", shipId: 102 },
+      null,
+    ]);
+    expect(copiedTargetPlan?.note).toBe("保留备注");
+    const sourcePlanResponse = await sourcePage.request.get(`/api/lock-plan?activityId=${activity.activity.id}`);
+    const sourcePlans = await sourcePlanResponse.json() as {
+      plans: Array<{ tagId: string; assignedData: string; note: string | null }>;
+    };
+    const unchangedSourcePlan = sourcePlans.plans.find((plan) => plan.tagId === tag.tag.id);
+    expect(JSON.parse(unchangedSourcePlan?.assignedData ?? "[]")).toEqual(sourceAssignments);
+    expect(unchangedSourcePlan?.note).toBe("来源备注");
+
+    const desktopUndo = waitForPlanSave();
+    await page.getByRole("button", { name: "撤销复制锁船" }).click();
+    expect((await desktopUndo).ok()).toBe(true);
+    await expect(desktopGhost).toHaveCount(0);
+    expect(JSON.parse((await getTargetPlan())?.assignedData ?? "[]")).toEqual(originalTargetAssignments);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/lock-plan?activityId=${activity.activity.id}`);
+    await page.getByRole("tab", { name: "全员概览" }).click();
+    const sourceDetails = page.locator("details").filter({ hasText: "提督B" });
+    await sourceDetails.locator("summary").click();
+    await sourceDetails.getByRole("button", { name: `拷贝${tagName}到我的札` }).click();
+    const mobileSave = waitForPlanSave();
+    await page.getByRole("alertdialog", { name: "拷贝到我的札" })
+      .getByRole("button", { name: "复制到我的札" })
+      .click();
+    expect((await mobileSave).ok()).toBe(true);
+
+    await page.getByRole("tab", { name: "我的编辑" }).click();
+    const mobileGhost = page.getByRole("button", { name: /缺少 .+，点击选择替代舰船/ });
+    await expect(mobileGhost).toBeVisible();
+    await expectNoDocumentOverflow(page);
+    await expectNoSeriousAxeIssues(page);
+
+    const mobileUndo = waitForPlanSave();
+    await page.getByRole("button", { name: "撤销复制锁船" }).click();
+    expect((await mobileUndo).ok()).toBe(true);
+    await expect(mobileGhost).toHaveCount(0);
+
+    await page.getByRole("tab", { name: "全员概览" }).click();
+    const conflictSourceDetails = page.locator("details").filter({ hasText: "提督B" });
+    await conflictSourceDetails.locator("summary").click();
+    await conflictSourceDetails.getByRole("button", { name: `拷贝${tagName}到我的札` }).click();
+    await page.route("**/api/lock-plan", async (route) => {
+      if (route.request().method() === "PATCH") {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "测试并发冲突" }),
+        });
+        return;
+      }
+      await route.continue();
+    }, { times: 1 });
+    await page.getByRole("alertdialog", { name: "拷贝到我的札" })
+      .getByRole("button", { name: "复制到我的札" })
+      .click();
+    await expect(page.getByRole("alertdialog", { name: "锁船计划已被更新" })).toBeVisible();
+    await page.getByRole("button", { name: "稍后刷新" }).click();
+    await page.getByRole("tab", { name: "我的编辑" }).click();
+    await expect(page.getByRole("button", { name: /缺少 .+，点击选择替代舰船/ })).toHaveCount(0);
+    expect(JSON.parse((await getTargetPlan())?.assignedData ?? "[]")).toEqual(originalTargetAssignments);
+  } finally {
+    await page.request.put("/api/users/ship-data", {
+      data: { shipData: restoreTargetShipData },
+    });
+    await sourcePage.request.put("/api/users/ship-data", {
+      data: { shipData: restoreSourceShipData },
+    });
+    await sourceContext.close();
+  }
 });
 
 test("routine cards preserve strike and combined fleet layouts", async ({ page }, testInfo) => {

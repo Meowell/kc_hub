@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { type ShipStock } from "@/lib/noro6";
-import { type LockAssignment } from "@/lib/lock-plan-helpers";
+import { type CopySlotHint, type LockAssignment } from "@/lib/lock-plan-helpers";
 import { type ActivityBonusGroup } from "@/lib/activity-bonus";
 import { TagLockColumn } from "@/components/lock-plan/tag-lock-column";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,9 @@ type UserLockRowProps = {
   getShipName: (shipId: number) => string;
   getShipType: (shipId: number) => string;
   bonusGroupsByTagId?: Record<string, ActivityBonusGroup[]>;
+  copyHintsByTagId?: Record<string, (CopySlotHint | null)[]>;
+  copyDisabledReasonByTagId?: Record<string, string | null>;
+  onCopyToMine?: (userId: string, tagId: string) => void;
   onCellClick: (userId: string, tagId: string, rowIndex: number) => void;
   onRemoveShip: (userId: string, tagId: string, uniqueId: string) => void;
   onReorder?: (userId: string, tagId: string, newAssignments: (LockAssignment | null)[]) => void;
@@ -32,12 +35,17 @@ type UserLockRowProps = {
 export function UserLockRow({
   userId, userName, avatarUrl, tags, plans, ships, hasShipData,
   getShipName, getShipType, bonusGroupsByTagId = {},
+  copyHintsByTagId = {}, copyDisabledReasonByTagId = {}, onCopyToMine,
   onCellClick, onRemoveShip, onReorder, onDropShip, readOnly = false, highlightTagId,
 }: UserLockRowProps) {
   const planByTagId = new Map(plans.map((p) => [p.tagId, p]));
 
   return (
-    <div className="overflow-x-auto pb-2">
+    <div
+      className="overflow-x-auto pb-2"
+      data-testid="lock-plan-user-row"
+      data-user-name={userName}
+    >
       <div className="flex min-w-max items-start gap-4">
         <div className="sticky left-0 z-20 w-[180px] shrink-0 border border-border-base bg-bg-panel/95 p-3 shadow-xl shadow-black/20">
           <div className="flex items-center gap-3">
@@ -81,6 +89,9 @@ export function UserLockRow({
                 getShipName={getShipName}
                 getShipType={getShipType}
                 bonusGroups={bonusGroupsByTagId[tag.id] ?? []}
+                copyHints={copyHintsByTagId[tag.id] ?? []}
+                onCopyToMine={onCopyToMine ? (() => onCopyToMine(userId, tag.id)) : undefined}
+                copyDisabledReason={copyDisabledReasonByTagId[tag.id] ?? null}
                 onCellClick={(tId, rowIdx) => onCellClick(userName, tId, rowIdx)}
                 onRemoveShip={(tId, uId) => onRemoveShip(userName, tId, uId)}
                 onReorder={(tId, newAssignments) => onReorder?.(userId, tId, newAssignments)}

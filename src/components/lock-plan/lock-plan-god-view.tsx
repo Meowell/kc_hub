@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Copy } from "lucide-react";
 
 import { BonusManager } from "@/components/lock-plan/bonus-manager";
 import { ConflictAlertDialog } from "@/components/lock-plan/conflict-alert-dialog";
@@ -21,12 +22,15 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   buildLockMatrixSummary,
+  buildCopiedLockPlan,
   getSaveStatusDisplay,
   getDefaultMobileTagId,
   getTagDisableImpact,
   moveAssignmentBetweenTags,
   parseAssignments,
+  type CopySlotHint,
   type LockAssignment,
+  type LockPlanCopyResult,
   type LockSaveStatus,
 } from "@/lib/lock-plan-helpers";
 import {
@@ -64,9 +68,38 @@ type PlanMutation = {
 type PendingUndo = {
   label: string;
   mutations: PlanMutation[];
+  copyHintsRestore?: {
+    tagId: string;
+    hints: (CopySlotHint | null)[] | null;
+  };
+};
+
+type CopyPreviewState = {
+  sourceUserId: string;
+  sourceUserName: string;
+  tagId: string;
+  tagName: string;
+  result: LockPlanCopyResult;
+  previousAssignedData: string;
+  previousHints: (CopySlotHint | null)[] | null;
+  targetNote: string | null;
 };
 
 class PlanSaveConflictError extends Error {}
+
+function updateCopyHints(
+  current: Record<string, (CopySlotHint | null)[]>,
+  tagId: string,
+  hints: (CopySlotHint | null)[] | null,
+) {
+  const next = { ...current };
+  if (hints?.some(Boolean)) {
+    next[tagId] = hints;
+  } else {
+    delete next[tagId];
+  }
+  return next;
+}
 
 // ============================================================
 // Props
@@ -198,6 +231,18 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
     tagId: string;
     index: number;
   } | null>(null);
+
+  // ---- Transient copy preview / missing-ship hints ----
+  const [copyHintsByTagId, setCopyHintsByTagId] = useState<
+    Record<string, (CopySlotHint | null)[]>
+  >({});
+  const [copyPreview, setCopyPreview] = useState<CopyPreviewState | null>(null);
+  const [copySaving, setCopySaving] = useState(false);
+
+  useEffect(() => {
+    setCopyHintsByTagId({});
+    setCopyPreview(null);
+  }, [activityId]);
 
   // ---- Error / saving ----
   const [error, setError] = useState("");
@@ -602,6 +647,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
     if (!pendingUndo) return;
     const undo = pendingUndo;
     const previousPlansByUser = plansByUser;
+    const previousCopyHintsByTagId = copyHintsByTagId;
 
     setError("");
     setPlansByUser((prev) => {
@@ -612,12 +658,22 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
       }
       return next;
     });
+    if (undo.copyHintsRestore) {
+      setCopyHintsByTagId((prev) =>
+        updateCopyHints(
+          prev,
+          undo.copyHintsRestore!.tagId,
+          undo.copyHintsRestore!.hints,
+        ),
+      );
+    }
 
     try {
       await savePlans(undo.mutations);
       setPendingUndo(null);
     } catch (e) {
       setPlansByUser(previousPlansByUser);
+      setCopyHintsByTagId(previousCopyHintsByTagId);
       if (e instanceof PlanSaveConflictError) {
         setPlanConflictMessage(e.message);
       } else {
@@ -710,6 +766,135 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
     [activeTags, bonusConfig],
   );
   const currentUser = initialUsers.find((user) => user.userId === currentUserId) ?? initialUsers[0];
+  const currentUserHasShipData = !!currentUser?.shipDataRaw?.trim();
+
+  function getCopyDisabledReason(sourceUserId: string, tagId: string) {
+    if (isDailyScope) return "日常范围不支持锁船复制";
+    if (!currentUserHasShipData) return "请先导入自己的 noro6 舰船数据";
+    const sourceAssignments = parseAssignments(
+      plansByUser[sourceUserId]?.[tagId] ?? "[]",
+    );
+    if (!sourceAssignments.some(Boolean)) return "该札没有可复制舰船";
+    return null;
+  }
+
+  function openCopyPreview(sourceUserId: string, tagId: string) {
+    if (!currentUser || sourceUserId === currentUser.userId) return;
+    const disabledReason = getCopyDisabledReason(sourceUserId, tagId);
+    if (disabledReason) {
+      setError(disabledReason);
+      return;
+    }
+
+    const sourceUser = initialUsers.find((user) => user.userId === sourceUserId);
+    const tag = activeTags.find((item) => item.id === tagId);
+    if (!sourceUser || !tag) return;
+
+    const sourceAssignments = parseAssignments(
+      plansByUser[sourceUserId]?.[tagId] ?? "[]",
+    );
+    const previousAssignedData = plansByUser[currentUser.userId]?.[tagId] ?? "[]";
+    const targetAssignments = parseAssignments(previousAssignedData);
+    const otherTargetAssignments = activeTags
+      .filter((item) => item.id !== tagId)
+      .flatMap((item) =>
+        parseAssignments(plansByUser[currentUser.userId]?.[item.id] ?? "[]"),
+      );
+    const result = buildCopiedLockPlan({
+      sourceAssignments,
+      sourceShips: shipsByUser[sourceUserId] ?? [],
+      targetShips: shipsByUser[currentUser.userId] ?? [],
+      targetAssignments,
+      otherTargetAssignments,
+    });
+
+    setError("");
+    setCopyPreview({
+      sourceUserId,
+      sourceUserName: sourceUser.userName,
+      tagId,
+      tagName: tag.name,
+      result,
+      previousAssignedData,
+      previousHints: copyHintsByTagId[tagId]
+        ? [...copyHintsByTagId[tagId]]
+        : null,
+      targetNote: currentUser.plans.find((plan) => plan.tagId === tagId)?.note ?? null,
+    });
+  }
+
+  async function confirmCopyPlan() {
+    if (!copyPreview || !currentUser || copySaving) return;
+
+    const preview = copyPreview;
+    const targetUserId = currentUser.userId;
+    const nextAssignedData = JSON.stringify(preview.result.assignments);
+    const mutation = {
+      userId: targetUserId,
+      tagId: preview.tagId,
+      assignedData: nextAssignedData,
+      note: preview.targetNote,
+    };
+
+    setError("");
+    setCopySaving(true);
+    setPlansByUser((prev) => {
+      const next = structuredClone(prev);
+      if (!next[targetUserId]) next[targetUserId] = {};
+      next[targetUserId][preview.tagId] = nextAssignedData;
+      return next;
+    });
+    setCopyHintsByTagId((prev) =>
+      updateCopyHints(prev, preview.tagId, preview.result.hints),
+    );
+
+    try {
+      await savePlans([mutation]);
+      setPendingUndo({
+        label: "撤销复制锁船",
+        mutations: [{
+          userId: targetUserId,
+          tagId: preview.tagId,
+          assignedData: preview.previousAssignedData,
+          note: preview.targetNote,
+        }],
+        copyHintsRestore: {
+          tagId: preview.tagId,
+          hints: preview.previousHints,
+        },
+      });
+      setMobileTagId(preview.tagId);
+      setCopyPreview(null);
+    } catch (e) {
+      setPlansByUser((prev) => {
+        const next = structuredClone(prev);
+        if (!next[targetUserId]) next[targetUserId] = {};
+        next[targetUserId][preview.tagId] = preview.previousAssignedData;
+        return next;
+      });
+      setCopyHintsByTagId((prev) =>
+        updateCopyHints(prev, preview.tagId, preview.previousHints),
+      );
+      setCopyPreview(null);
+      if (e instanceof PlanSaveConflictError) {
+        setPlanConflictMessage(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "复制失败");
+      }
+    } finally {
+      setCopySaving(false);
+    }
+  }
+
+  const copyMissingSummary = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const hint of copyPreview?.result.hints ?? []) {
+      if (!hint) continue;
+      counts.set(hint.shipId, (counts.get(hint.shipId) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([shipId, count]) => ({ shipId, count }));
+  }, [copyPreview]);
+
   const matrixSummary = useMemo(
     () =>
       buildLockMatrixSummary(
@@ -773,6 +958,21 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
   const selectedMobileAssignments = selectedMobileTag
     ? parseAssignments(currentUserPlans[selectedMobileTag.id] ?? "[]")
     : [];
+  const selectedMobileCopyHints = selectedMobileTag
+    ? copyHintsByTagId[selectedMobileTag.id] ?? []
+    : [];
+  const selectedMobileHintedSlotCount = selectedMobileCopyHints.reduce(
+    (count, hint, index) => hint ? Math.max(count, index + 1) : count,
+    0,
+  );
+  const selectedMobileSlotCount = Math.max(
+    selectedMobileAssignments.length,
+    selectedMobileHintedSlotCount,
+  );
+  const selectedMobileSlots = Array.from(
+    { length: selectedMobileSlotCount },
+    (_, index) => selectedMobileAssignments[index] ?? null,
+  );
   const selectedMobileBonusGroups = selectedMobileTag ? bonusGroupsByTagId[selectedMobileTag.id] ?? [] : [];
   const selectedMobileShips = useMemo(
     () => currentUser ? shipsByUser[currentUser.userId] ?? [] : [],
@@ -898,7 +1098,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
               </div>
 
               <div className="space-y-2">
-                {selectedMobileAssignments.length === 0 ? (
+                {selectedMobileSlots.length === 0 ? (
                   <button
                     type="button"
                     onClick={() => openMobilePicker(0)}
@@ -907,8 +1107,30 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                     + 选择舰船
                   </button>
                 ) : (
-                  selectedMobileAssignments.map((assignment, index) => {
+                  selectedMobileSlots.map((assignment, index) => {
                     if (!assignment) {
+                      const copyHint = selectedMobileCopyHints[index] ?? null;
+                      if (copyHint) {
+                        return (
+                          <button
+                            key={`mobile-copy-hint-${index}-${copyHint.shipId}`}
+                            type="button"
+                            onClick={() => openMobilePicker(index)}
+                            className="flex min-h-14 w-full items-center justify-between gap-3 border border-dashed border-sky-400/50 bg-sky-500/10 px-3 text-left text-sky-100/70"
+                            aria-label={`缺少 ${getShipName(copyHint.shipId)}，点击选择替代舰船`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold">
+                                {getShipName(copyHint.shipId)}
+                              </span>
+                              <span className="terminal-label mt-1 block text-[11px] text-sky-200/60">
+                                Lv.{copyHint.sourceLevel ?? "?"} / 缺船
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs font-semibold">点此替换</span>
+                          </button>
+                        );
+                      }
                       return (
                         <button
                           key={`mobile-empty-${index}`}
@@ -945,10 +1167,10 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                     );
                   })
                 )}
-                {selectedMobileAssignments.length > 0 && (
+                {selectedMobileSlots.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => openMobilePicker(selectedMobileAssignments.length)}
+                    onClick={() => openMobilePicker(selectedMobileSlots.length)}
                     className="flex min-h-12 w-full items-center justify-center border border-dashed border-primary/35 bg-primary/10 text-xs font-semibold text-sky-100"
                   >
                     + 追加舰船
@@ -970,9 +1192,26 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                     <div className="space-y-2 border-t border-border-base p-3">
                       {activeTags.map((tag) => {
                         const assignments = parseAssignments(plansByUser[user.userId]?.[tag.id] ?? "[]").filter((item): item is LockAssignment => !!item);
+                        const copyDisabledReason = getCopyDisabledReason(user.userId, tag.id);
                         return (
                           <div key={tag.id} className="rounded-md bg-slate-900/70 px-3 py-2">
-                            <p className="text-sm font-semibold text-slate-200">{tag.name}</p>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-200">{tag.name}</p>
+                              {user.userId !== currentUserId && !isDailyScope && (
+                                <button
+                                  type="button"
+                                  disabled={!!copyDisabledReason}
+                                  onClick={() => openCopyPreview(user.userId, tag.id)}
+                                  title={copyDisabledReason ?? `拷贝${tag.name}到我的札`}
+                                  aria-label={copyDisabledReason ? `无法拷贝${tag.name}：${copyDisabledReason}` : `拷贝${tag.name}到我的札`}
+                                  className={copyDisabledReason
+                                    ? "flex h-9 w-9 shrink-0 cursor-not-allowed items-center justify-center text-slate-600"
+                                    : "flex h-9 w-9 shrink-0 items-center justify-center text-sky-200 transition hover:bg-sky-500/15 focus:outline-none focus:ring-2 focus:ring-sky-300/60"}
+                                >
+                                  <Copy className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
+                            </div>
                             <p className="mt-1 text-sm text-slate-400">{assignments.length ? assignments.map((item) => getShipName(item.shipId)).join("、") : "尚未分配"}</p>
                           </div>
                         );
@@ -1038,6 +1277,13 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
                 getShipName={getShipName}
                 getShipType={getShipType}
                 bonusGroupsByTagId={bonusGroupsByTagId}
+                copyHintsByTagId={user.userId === currentUserId ? copyHintsByTagId : {}}
+                copyDisabledReasonByTagId={user.userId === currentUserId ? {} : Object.fromEntries(
+                  activeTags.map((tag) => [tag.id, getCopyDisabledReason(user.userId, tag.id)]),
+                )}
+                onCopyToMine={user.userId !== currentUserId && !isDailyScope
+                  ? openCopyPreview
+                  : undefined}
                 onCellClick={(_, tagId, cellIndex) => {
                   openPicker(user.userId, tagId, cellIndex);
                 }}
@@ -1114,6 +1360,78 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
         getShipName={getShipName}
         onConfigChange={setBonusConfig}
       />
+
+      <AlertDialog
+        open={!!copyPreview}
+        onOpenChange={(open) => {
+          if (!open && !copySaving) setCopyPreview(null);
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>拷贝到我的札</AlertDialogTitle>
+          <AlertDialogDescription>
+            {copyPreview
+              ? `以 ${copyPreview.sourceUserName} 的「${copyPreview.tagName}」替换我当前的同名札。只自动匹配完全相同的舰船形态。`
+              : ""}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {copyPreview && (
+          <>
+            <div className="grid grid-cols-2 border-y border-border-base sm:grid-cols-4">
+              {[
+                ["来源", copyPreview.result.sourceCount],
+                ["匹配", copyPreview.result.matchedCount],
+                ["缺船", copyPreview.result.missingCount],
+                ["将替换", copyPreview.result.replacedCount],
+              ].map(([label, value]) => (
+                <div key={label} className="px-3 py-2">
+                  <p className="terminal-label text-[10px] text-slate-500">{label}</p>
+                  <p
+                    className="mt-1 text-lg font-semibold text-slate-100"
+                    data-testid={`copy-preview-${label}`}
+                  >
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {copyMissingSummary.length > 0 && (
+              <div className="max-h-36 overflow-y-auto border border-dashed border-sky-500/30 bg-sky-500/5 px-3 py-2">
+                <p className="text-xs font-semibold text-sky-100">以下舰船将保留为临时虚影</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                  {copyMissingSummary.map(({ shipId, count }) => (
+                    <li key={shipId} className="flex items-center justify-between gap-3">
+                      <span className="truncate">{getShipName(shipId)}</span>
+                      <span className="shrink-0 text-xs text-slate-500">×{count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {copyPreview.result.matchedCount === 0 && (
+              <p className="border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                当前没有可自动匹配的舰船。确认后会清空目标札，缺少的舰船仅以本页虚影显示。
+              </p>
+            )}
+          </>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            disabled={copySaving}
+            onClick={() => setCopyPreview(null)}
+          >
+            取消
+          </AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!copyPreview || copySaving}
+            onClick={() => void confirmCopyPlan()}
+            className="gap-2"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
+            {copySaving ? "保存中..." : "复制到我的札"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
 
       {/* Ship Picker Modal */}
       <ShipPickerModal
