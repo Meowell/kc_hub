@@ -25,6 +25,10 @@ import {
 } from "@/lib/lock-tag-colors";
 import { getAvailableShipTypeOptions } from "@/lib/master-data";
 import { type ShipStock } from "@/lib/noro6";
+import {
+  matchesShipSearchText,
+  normalizeShipSearchQuery,
+} from "@/lib/ship-search";
 import { cn } from "@/lib/utils";
 
 export type ShipLockInfo = {
@@ -40,6 +44,7 @@ type ShipPickerModalProps = {
   shipLocks: Map<string, ShipLockInfo>; // uniqueId -> { tagColorClass, tagName }
   bonusGroups?: ActivityBonusGroup[];
   getShipName: (shipId: number) => string;
+  getShipSearchText: (shipId: number) => string;
   getShipType: (shipId: number) => string;
   getShipTypeId: (shipId: number) => string;
   getShipOriginalId?: (shipId: number) => number;
@@ -62,6 +67,7 @@ export function ShipPickerModal({
   shipLocks,
   bonusGroups = [],
   getShipName,
+  getShipSearchText,
   getShipType,
   getShipTypeId,
   getShipOriginalId,
@@ -83,10 +89,9 @@ export function ShipPickerModal({
   );
 
   const filteredShips = useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase();
+    const q = normalizeShipSearchQuery(deferredQuery);
     return ships
       .filter((ship) => {
-        const name = getShipName(ship.shipId);
         const shipTypeId = Number(getShipTypeId(ship.shipId)) || undefined;
         const bonusMatch = getShipBonusMatch(
           bonusGroups,
@@ -96,7 +101,7 @@ export function ShipPickerModal({
           getShipOriginalId,
         );
         const matchesQuery =
-          !q || name.toLowerCase().includes(q) || String(ship.shipId).includes(q);
+          matchesShipSearchText(getShipSearchText(ship.shipId), q);
         const matchesType =
           shipType === "all" ||
           getShipTypeId(ship.shipId) === shipType;
@@ -108,7 +113,7 @@ export function ShipPickerModal({
         return matchesQuery && matchesType && matchesBonus;
       })
       .sort((a, b) => b.level - a.level);
-  }, [ships, deferredQuery, shipType, bonusFilter, bonusGroups, getShipName, getShipTypeId, getShipOriginalId]);
+  }, [ships, deferredQuery, shipType, bonusFilter, bonusGroups, getShipSearchText, getShipTypeId, getShipOriginalId]);
 
   return (
     <Dialog

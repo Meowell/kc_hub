@@ -19,8 +19,15 @@ import {
   getLockTagColorStyle,
   isCustomLockTagColor,
 } from "@/lib/lock-tag-colors";
-import { createMasterLookup } from "@/lib/master-data";
+import {
+  createMasterLookup,
+  getShipSearchTextFromLookup,
+} from "@/lib/master-data";
 import { getNoro6ShipUniqueId, parseNoro6Data, type Noro6Preview } from "@/lib/noro6";
+import {
+  matchesShipSearchText,
+  normalizeShipSearchQuery,
+} from "@/lib/ship-search";
 import { useMasterData } from "@/lib/use-master-data";
 import { filterRowsByLockTag, getLockAssignmentsForViewer } from "@/lib/frontend-ux";
 
@@ -37,6 +44,7 @@ type ShipRow = {
   id: number;
   orig: number;
   name: string;
+  searchText: string;
   stype: number;
   stypeName: string;
   lv: number;
@@ -244,6 +252,7 @@ export function ShipDataCenter({
           id: ship.id,
           orig: masterLookup.origByShipId.get(ship.id) ?? ship.id,
           name: masterLookup.shipNameById.get(ship.id) ?? `未知舰船 ID ${ship.id}`,
+          searchText: getShipSearchTextFromLookup(masterLookup, ship.id),
           stype: base ? base.api_stype : 0,
           stypeName: base ? (masterLookup.stypeNameById.get(base.api_stype) ?? "未知") : "未知",
           lv: ship.lv,
@@ -300,9 +309,9 @@ export function ShipDataCenter({
     if (stypeFilter !== 0) {
       list = list.filter((s) => s.stype === stypeFilter);
     }
-    const kw = searchText.trim().toLowerCase();
+    const kw = normalizeShipSearchQuery(searchText);
     if (kw) {
-      list = list.filter((s) => s.name.toLowerCase().includes(kw));
+      list = list.filter((s) => matchesShipSearchText(s.searchText, kw));
     }
     return list;
   }, [searchText, selectedLockTagId, sortedShips, stypeFilter, viewerLockAssignmentsByTagId]);

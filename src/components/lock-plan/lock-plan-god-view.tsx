@@ -37,7 +37,12 @@ import {
   getBonusGroupsForTag,
   type ActivityBonusConfig,
 } from "@/lib/activity-bonus";
-import { createMasterLookup, getShipNameFromLookup, getShipTypeFromLookup } from "@/lib/master-data";
+import {
+  createMasterLookup,
+  getShipNameFromLookup,
+  getShipSearchTextFromLookup,
+  getShipTypeFromLookup,
+} from "@/lib/master-data";
 import { deriveShipStock, type ShipStock } from "@/lib/noro6";
 import { useMasterData } from "@/lib/use-master-data";
 import {
@@ -135,6 +140,10 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
   const masterLookup = useMemo(() => createMasterLookup(masterData), [masterData]);
   const getShipName = useCallback(
     (shipId: number) => getShipNameFromLookup(masterLookup, shipId),
+    [masterLookup],
+  );
+  const getShipSearchText = useCallback(
+    (shipId: number) => getShipSearchTextFromLookup(masterLookup, shipId),
     [masterLookup],
   );
   const getShipType = useCallback(
@@ -1524,6 +1533,7 @@ export function LockPlanGodView({ initialTags, initialUsers, activityId, current
         shipLocks={pickerUserId ? getShipLockMap(pickerUserId) : new Map()}
         bonusGroups={pickerTagId ? bonusGroupsByTagId[pickerTagId] ?? [] : []}
         getShipName={getShipName}
+        getShipSearchText={getShipSearchText}
         getShipType={getShipType}
         getShipTypeId={getShipTypeId}
         getShipOriginalId={getShipOriginalId}

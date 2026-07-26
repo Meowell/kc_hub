@@ -1,6 +1,9 @@
+import { buildShipSearchText } from "@/lib/ship-search";
+
 export type ShipMaster = {
   api_id: number;
   api_name: string;
+  api_yomi?: string;
   api_stype: number;
   api_aftershipid?: string;
   api_taik?: number | number[];
@@ -125,6 +128,21 @@ function getRemodelRoot(shipId: number, remodelFrom: Map<number, Set<number>>): 
 export function createMasterLookup(masterData: MasterData = emptyMasterData) {
   const allShips = masterData.start2.api_mst_ship ?? [];
   const shipNameById = new Map(allShips.map((ship) => [ship.api_id, ship.api_name]));
+  const shipYomiById = new Map(
+    allShips.flatMap((ship) => (
+      ship.api_yomi ? [[ship.api_id, ship.api_yomi] as const] : []
+    )),
+  );
+  const shipSearchTextById = new Map(
+    allShips.map((ship) => [
+      ship.api_id,
+      buildShipSearchText({
+        shipId: ship.api_id,
+        name: ship.api_name,
+        yomi: ship.api_yomi,
+      }),
+    ]),
+  );
   const shipBaseById = new Map(allShips.map((ship) => [ship.api_id, ship]));
   const masterByShipId = shipBaseById;
   const shipTypeById = new Map(allShips.map((ship) => [ship.api_id, ship.api_stype]));
@@ -176,6 +194,8 @@ export function createMasterLookup(masterData: MasterData = emptyMasterData) {
   return {
     allShips,
     shipNameById,
+    shipYomiById,
+    shipSearchTextById,
     shipBaseById,
     masterByShipId,
     shipTypeById,
@@ -192,6 +212,13 @@ export function createMasterLookup(masterData: MasterData = emptyMasterData) {
 
 export function getShipNameFromLookup(lookup: MasterLookup, shipId: number) {
   return lookup.shipNameById.get(shipId) ?? `未知舰船 ${shipId}`;
+}
+
+export function getShipSearchTextFromLookup(lookup: MasterLookup, shipId: number) {
+  return lookup.shipSearchTextById.get(shipId) ?? buildShipSearchText({
+    shipId,
+    name: getShipNameFromLookup(lookup, shipId),
+  });
 }
 
 export function getShipTypeFromLookup(lookup: MasterLookup, shipId: number) {

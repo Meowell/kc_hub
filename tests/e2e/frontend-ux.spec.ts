@@ -155,7 +155,10 @@ test("ship picker keeps focus while an IME composition updates search results", 
   const updateResponse = await page.request.put("/api/users/ship-data", {
     data: {
       shipData: JSON.stringify({
-        ships: [{ id: 102, lv: 35, st: [] }],
+        ships: [
+          { id: 43, lv: 35, st: [] },
+          { id: 102, lv: 35, st: [] },
+        ],
         items: [],
       }),
     },
@@ -168,6 +171,9 @@ test("ship picker keeps focus while an IME composition updates search results", 
   const search = page.getByPlaceholder("搜索舰名或 ID");
   await expect(search).toBeVisible();
   await search.click();
+  await search.fill("时");
+  await expect(page.getByText("時雨", { exact: true })).toBeVisible();
+  await search.fill("");
   await search.evaluate((element) => {
     element.dispatchEvent(new CompositionEvent("compositionstart", {
       bubbles: true,

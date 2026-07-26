@@ -16,8 +16,17 @@ import {
   type ParsedFleetKind,
   type ParsedShip,
 } from "@/lib/fleet-parser";
-import { createMasterLookup, shipTypeLabels, type MasterLookup } from "@/lib/master-data";
+import {
+  createMasterLookup,
+  getShipSearchTextFromLookup,
+  shipTypeLabels,
+  type MasterLookup,
+} from "@/lib/master-data";
 import { parseNoro6Data } from "@/lib/noro6";
+import {
+  matchesShipSearchText,
+  normalizeShipSearchQuery,
+} from "@/lib/ship-search";
 import { useMasterData } from "@/lib/use-master-data";
 
 function getShipTypeAbbr(shipId: number, lookup: MasterLookup): string {
@@ -90,6 +99,7 @@ interface StockShip {
   shipId: number;
   level: number;
   name: string;
+  searchText: string;
   stype: number;
   typeName: string;
   maxHp: number;
@@ -122,6 +132,7 @@ function loadStockShips(shipData: string | null, lookup: MasterLookup): StockShi
         shipId: s.id,
         level: s.lv,
         name: lookup.shipNameById.get(s.id) ?? `ID:${s.id}`,
+        searchText: getShipSearchTextFromLookup(lookup, s.id),
         stype: base ? base.api_stype : 0,
         typeName: base ? (lookup.stypeNameById.get(base.api_stype) ?? "?") : "?",
         maxHp: hp?.max_hp ?? hp?.hp ?? 99,
@@ -412,8 +423,8 @@ function ShipPickerModal({
   const filtered = useMemo(() => {
     let list = stock;
     if (stypeFilter !== 0) list = list.filter((s) => s.stype === stypeFilter);
-    const kw = search.trim().toLowerCase();
-    if (kw) list = list.filter((s) => s.name.toLowerCase().includes(kw) || String(s.shipId).includes(kw));
+    const kw = normalizeShipSearchQuery(search);
+    if (kw) list = list.filter((s) => matchesShipSearchText(s.searchText, kw));
     const dir = sortDir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => ((a[sortKey] as number) - (b[sortKey] as number)) * dir);
   }, [stock, stypeFilter, search, sortKey, sortDir]);

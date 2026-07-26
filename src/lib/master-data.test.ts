@@ -7,6 +7,10 @@ import {
   shipTypeLabels,
   type MasterData,
 } from "./master-data";
+import {
+  matchesShipSearchText,
+  normalizeShipSearchQuery,
+} from "./ship-search";
 
 const kasumiForms: MasterData["start2"]["api_mst_ship"] = [
   { api_id: 49, api_name: "霞", api_stype: 2, api_aftershipid: "253" },
@@ -63,5 +67,30 @@ describe("ship type labels", () => {
 
     assert.equal(lookup.origByShipId.get(464), 49);
     assert.equal(lookup.origByShipId.get(470), 49);
+  });
+
+  it("indexes original, simplified, and reading variants for ship search", () => {
+    const lookup = createMasterLookup({
+      start2: {
+        api_mst_ship: [
+          { api_id: 43, api_name: "時雨", api_yomi: "しぐれ", api_stype: 2 },
+        ],
+        api_mst_slotitem: [],
+        api_mst_stype: [],
+        api_mst_slotitem_equiptype: [],
+      },
+      shipHp: [],
+      source: "runtime",
+    });
+    const searchText = lookup.shipSearchTextById.get(43) ?? "";
+
+    assert.equal(
+      matchesShipSearchText(searchText, normalizeShipSearchQuery("时")),
+      true,
+    );
+    assert.equal(
+      matchesShipSearchText(searchText, normalizeShipSearchQuery("しぐれ")),
+      true,
+    );
   });
 });
