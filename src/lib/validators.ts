@@ -15,6 +15,35 @@ export const registerSchema = z.object({
   pinCode: pinSchema,
 });
 
+export const renameAccountSchema = z.object({
+  newName: userNameSchema,
+  currentPin: pinSchema,
+});
+
+export const changePinSchema = z
+  .object({
+    currentPin: pinSchema,
+    newPin: pinSchema,
+    confirmPin: pinSchema,
+  })
+  .superRefine(({ currentPin, newPin, confirmPin }, context) => {
+    if (newPin !== confirmPin) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["confirmPin"],
+        message: "两次输入的新 PIN 不一致",
+      });
+    }
+
+    if (currentPin === newPin) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["newPin"],
+        message: "新 PIN 不能与当前 PIN 相同",
+      });
+    }
+  });
+
 export const shipDataSchema = z.object({
   shipData: z.string().min(2).max(8 * 1024 * 1024),
 });

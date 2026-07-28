@@ -4,6 +4,7 @@ import { AvatarEditor } from "@/components/common/avatar-editor";
 import { DailyCheckIn } from "@/components/common/daily-checkin";
 import { ImageUploader } from "@/components/common/image-uploader";
 import { GameEntryCard } from "@/components/games/game-entry-card";
+import { AccountSettings } from "@/components/profile/account-settings";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requireCurrentUser } from "@/lib/auth";
@@ -18,7 +19,7 @@ export default async function ProfilePage() {
         <p className="terminal-label text-xs font-semibold text-primary">ADMIRAL STATUS</p>
         <h1 className="mt-2 text-2xl font-bold text-white">个人设置</h1>
         <p className="mt-2 text-sm text-slate-400">
-          管理头像、个人背景、签到粮食与附属小游戏。
+          管理账号、头像、个人背景、签到粮食与附属小游戏。
         </p>
       </section>
 
@@ -45,6 +46,14 @@ export default async function ProfilePage() {
           <DailyCheckIn initialFood={user.food} />
         </Panel>
       </div>
+
+      <Panel
+        eyebrow="ACCOUNT"
+        title="账号设置"
+        status={<StatusBadge variant="muted">SELF SERVICE</StatusBadge>}
+      >
+        <AccountSettings initialName={user.name} />
+      </Panel>
 
       <Panel
         eyebrow="SIDE OPS"

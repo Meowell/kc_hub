@@ -23,8 +23,10 @@ async function expectNoDocumentOverflow(page: Page) {
   }).toPass({ timeout: 5_000 });
 }
 
-async function expectNoSeriousAxeIssues(page: Page) {
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+async function expectNoSeriousAxeIssues(page: Page, include?: string) {
+  const builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]);
+  if (include) builder.include(include);
+  const results = await builder.analyze();
   expect(results.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
 }
 
@@ -534,4 +536,53 @@ test("all games render without emoji assets or spending test food", async ({ pag
     await page.getByRole("button", { name: "关闭" }).click();
     await expect(page.locator("canvas")).toHaveCount(0);
   }
+});
+
+test("users can rename themselves and change their PIN", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440", "Account settings flow only needs one desktop viewport.");
+
+  const suffix = Date.now().toString().slice(-8);
+  const originalName = `账号验收${suffix}`;
+  const renamedName = `改名验收${suffix}`;
+  const originalPin = "2468";
+  const newPin = "1357";
+
+  const registerResponse = await page.request.post("/api/auth/register", {
+    data: { name: originalName, pinCode: originalPin },
+  });
+  expect(registerResponse.ok()).toBe(true);
+
+  await page.goto("/profile");
+  await expectNoDocumentOverflow(page);
+  await expectNoSeriousAxeIssues(page, '[data-testid="account-settings"]');
+  await page.getByLabel("新用户名").fill(renamedName);
+  await page.getByLabel("当前 PIN").first().fill(originalPin);
+  await page.getByRole("button", { name: "修改用户名" }).click();
+  await expect(page.getByText("用户名已更新")).toBeVisible();
+  await expect(page.locator("header").getByText(renamedName, { exact: true })).toBeVisible();
+
+  await page.getByLabel("当前 PIN").last().fill(originalPin);
+  await page.locator("#account-new-pin").fill(newPin);
+  await page.getByLabel("确认新 PIN").fill(newPin);
+  await page.getByRole("button", { name: "修改 PIN" }).click();
+  await expect(page.getByText("PIN 已更新，下次登录请使用新 PIN")).toBeVisible();
+
+  await page.request.post("/api/auth/logout");
+  const oldNameLogin = await page.request.post("/api/auth/login", {
+    data: { name: originalName, pinCode: newPin },
+  });
+  expect(oldNameLogin.status()).toBe(401);
+  const oldPinLogin = await page.request.post("/api/auth/login", {
+    data: { name: renamedName, pinCode: originalPin },
+  });
+  expect(oldPinLogin.status()).toBe(401);
+  const newLogin = await page.request.post("/api/auth/login", {
+    data: { name: renamedName, pinCode: newPin },
+  });
+  expect(newLogin.ok()).toBe(true);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/profile");
+  await expectNoDocumentOverflow(page);
+  await expectNoSeriousAxeIssues(page, '[data-testid="account-settings"]');
 });
