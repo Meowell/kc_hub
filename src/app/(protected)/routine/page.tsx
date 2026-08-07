@@ -1,4 +1,5 @@
 import { ActivitySwitcher } from "@/components/common/activity-switcher";
+import { RoutineCollectionBoard } from "@/components/routine/routine-collection-board";
 import { RoutineRecords } from "@/components/routine/routine-form";
 import { RoutineFilter } from "@/components/routine/routine-filter";
 import { getActiveActivities, resolveActivityScope } from "@/lib/activity-scope";
@@ -7,19 +8,70 @@ import { canManageSharedResource, getVisibleContentWhere } from "@/lib/collabora
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getSafePage } from "@/lib/frontend-ux";
+import { SEASONAL_MONTH_COLLECTION } from "@/lib/routine-collections";
+import { ClipboardCheck, LayoutList } from "lucide-react";
+import Link from "next/link";
 
 const PAGE_SIZE = 10;
+
+function RoutineViewTabs({ collectionView }: { collectionView: boolean }) {
+  return (
+    <nav className="inline-flex w-full rounded-md border border-slate-700 bg-slate-900/60 p-1 sm:w-auto" aria-label="作业页面视图">
+      <Link
+        href="/routine"
+        aria-current={!collectionView ? "page" : undefined}
+        className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:flex-none ${
+          !collectionView ? "bg-sky-500/18 text-sky-100" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+        }`}
+      >
+        <LayoutList className="h-4 w-4" aria-hidden="true" />
+        作业卡
+      </Link>
+      <Link
+        href="/routine?view=collections"
+        aria-current={collectionView ? "page" : undefined}
+        className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:flex-none ${
+          collectionView ? "bg-emerald-500/18 text-emerald-100" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+        }`}
+      >
+        <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+        作业合集
+      </Link>
+    </nav>
+  );
+}
 
 export default async function RoutinePage({
   searchParams,
 }: {
-  searchParams: { page?: string; search?: string; seaArea?: string; uploaderId?: string; activityId?: string };
+  searchParams: { page?: string; search?: string; seaArea?: string; uploaderId?: string; activityId?: string; view?: string };
 }) {
   const user = await requireCurrentUser();
   const [activities, scope] = await Promise.all([
     getActiveActivities(),
     resolveActivityScope(searchParams.activityId),
   ]);
+  const collectionView = scope.isDaily && searchParams.view === "collections";
+
+  if (collectionView) {
+    const collectionProgress = await prisma.routineCollectionProgress.findMany({
+      where: { userId: user.id, collectionKey: SEASONAL_MONTH_COLLECTION.key },
+      select: { stepKey: true, completedCount: true },
+    });
+
+    return (
+      <div className="space-y-6">
+        <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} canCreateActivity={canManageSharedResource(user)} />
+        <RoutineViewTabs collectionView />
+        <div>
+          <p className="terminal-label text-xs font-semibold text-primary">ROUTINE COLLECTION / 作业合集</p>
+          <h1 className="mt-2 text-2xl font-bold text-white">日常作业合集</h1>
+          <p className="mt-1.5 text-sm text-slate-400">有序任务、所需次数与个人完成进度</p>
+        </div>
+        <RoutineCollectionBoard collection={SEASONAL_MONTH_COLLECTION} initialProgress={collectionProgress} />
+      </div>
+    );
+  }
 
   const currentPage = Math.max(1, parseInt(searchParams.page || "1", 10) || 1);
   const search = searchParams.search?.trim() || undefined;
@@ -86,6 +138,7 @@ export default async function RoutinePage({
   return (
     <div className="space-y-6">
       <ActivitySwitcher activities={activities} currentActivityId={scope.activityId} canCreateActivity={canManageSharedResource(user)} />
+      {scope.isDaily && <RoutineViewTabs collectionView={false} />}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <p className="terminal-label text-xs font-semibold text-primary">SORTIE BOARD / 作业卡</p>
